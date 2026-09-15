@@ -13,12 +13,219 @@ from model import *
 from utils import *
 from arch import archs
 
+def main_link_prediction(args, g, dl, link_split):
+    if args.dataset == 'ACM':
+        tgt_type = 'P'
+    elif args.dataset == 'AMAZON':
+        tgt_type = 'P'
+    else:
+        assert 0, 'link prediction is currently only wired up for ACM and AMAZON'
+
+    device = 'cuda:{}'.format(args.gpu) if not args.cpu else 'cpu'
+
+    # =======
+    # neighbor aggregation restricted to the searched meta-paths (fixed architecture)
+    # =======
+    max_length = args.num_hops + 1
+    prop_tic = datetime.datetime.now()
+    g = hg_propagate_feat_dgl_path(g, tgt_type, args.num_hops, max_length, archs[args.arch][0], echo=False)
+
+    feats = {}
+    keys = list(g.nodes[tgt_type].data.keys())
+    print(f'For tgt {tgt_type}, feature keys {keys}')
+    for k in keys:
+        feats[k] = g.nodes[tgt_type].data.pop(k)
+    data_size = {k: v.size(-1) for k, v in feats.items()}
+    feats = {k: v for k, v in feats.items() if k in archs[args.arch][0] or k == tgt_type}
+    if args.half_feats:
+        # fp16 storage halves CPU RAM; train_lp / infer_full_embeddings_final
+        # upcast to fp32 on the GPU at gather time
+        feats = {k: v.half() for k, v in feats.items()}
+    print(list(feats.keys()))
+    prop_toc = datetime.datetime.now()
+    print(f'Time used for feat prop {prop_toc - prop_tic}')
+    gc.collect()
+
+    # no label propagation for link prediction -- see plan's out-of-scope note
+    label_feats = {}
+
+    # =======
+    # counterpart side (author/user) -- raw attributes only, no meta-path search
+    # =======
+    src_name, dst_name = args.target_relation.split(',')
+    src_type_id = NODE_TYPE_IDS[args.dataset][src_name]
+    if args.user_tower == 'embedding':
+        # tower consumes indices: arange makes every src_attr[...] gather a passthrough
+        src_attr = torch.arange(link_split['num_src'])
+    else:
+        src_raw_attr = dl.nodes['attr'][src_type_id]
+        if src_raw_attr is None:
+            # identity fallback is a dense [num_src, num_src]: fine for a tiny
+            # type, tens-of-GB OOM at AMAZON user scale -- refuse loudly instead
+            assert link_split['num_src'] <= 20000, (
+                f'node type {src_name} has no attributes and is too large for a '
+                f'torch.eye fallback -- use --user-tower embedding')
+            src_attr = torch.eye(link_split['num_src'])
+        else:
+            src_attr = torch.FloatTensor(src_raw_attr)
+
+    train_sampler = TrainEdgeSampler(link_split['train_edges'], link_split['train_adj_src2dst'], seed=args.seed)
+
+    val_edges = torch.LongTensor(link_split['val_edges']).to(device)
+    val_negs = torch.LongTensor(link_split['val_negs']).to(device)
+    test_edges = torch.LongTensor(link_split['test_edges']).to(device)
+    test_negs = torch.LongTensor(link_split['test_negs']).to(device)
+
+    # =======
+    # eval loader over ALL tgt-type (item) nodes, for full embedding inference
+    # =======
+    num_dst = link_split['num_dst']
+    batchsize = 2 * args.batch_size
+    eval_loader = []
+    for batch_idx in range((num_dst - 1) // batchsize + 1):
+        batch_start = batch_idx * batchsize
+        batch_end = min(num_dst, (batch_idx + 1) * batchsize)
+        batch = torch.arange(batch_start, batch_end)
+        batch_feats = {k: x[batch_start:batch_end] for k, x in feats.items()}
+        eval_loader.append((batch, batch_feats, {}, None))
+
+    # =======
+    checkpt_folder = f'./output/{args.dataset}/'
+    if not os.path.exists(checkpt_folder):
+        os.makedirs(checkpt_folder)
+    checkpt_file = checkpt_folder + uuid.uuid4().hex
+
+    if args.amp:
+        scalar = torch.cuda.amp.GradScaler()
+    else:
+        scalar = None
+
+    # =======
+    # Construct network
+    # =======
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    model = LMSPS(args.embed_size, args.hidden, 1, feats.keys(), label_feats.keys(), tgt_type,
+        args.dropout, args.input_drop, args.att_drop, args.label_drop,
+        args.n_layers_2, args.residual, bns=args.bns, data_size=data_size, path=archs[args.arch][0],
+        label_path=archs[args.arch][1], eps=args.eps, device=device, task='link_prediction')
+    model = model.to(device)
+    if args.user_tower == 'embedding':
+        tower = UserEmbeddingTower(link_split['num_src'], args.hidden).to(device)
+    else:
+        tower = ShallowNodeTower(src_attr.shape[1], args.hidden).to(device)
+    src_attr_dev = src_attr.to(device)  # evals score on GPU; transfer the raw attrs once
+
+    if args.seed == args.seeds[0]:
+        print("# Params:", get_n_params(model) + get_n_params(tower))
+
+    optimizer = torch.optim.Adam(list(model.parameters()) + list(tower.parameters()),
+                                  lr=args.lr, weight_decay=args.weight_decay)
+
+    best_epoch = -1
+    best_val_loss = float('inf')
+    wait = 0
+    train_times = []
+
+    for epoch in tqdm(range(args.stage)):
+        gc.collect()
+        torch.cuda.synchronize()
+        start = time.time()
+        loss = train_lp(model, tower, feats, label_feats, src_attr, optimizer, train_sampler,
+                         args.batch_size, device, scalar=scalar)
+        torch.cuda.synchronize()
+        end = time.time()
+        train_times.append(end - start)
+
+        with torch.no_grad():
+            model.eval()
+            tower.eval()
+            dst_emb = infer_full_embeddings_final(model, eval_loader, device, keep_on_device=True)
+            src_emb = tower(src_attr_dev)
+
+            pos_scores = score_edges(src_emb, dst_emb, val_edges[:, 0], val_edges[:, 1])
+            neg_scores = score_edges(src_emb, dst_emb, val_edges[:, 0], val_negs)
+            val_loss = bpr_loss(pos_scores, neg_scores).item()
+            model.train()
+            tower.train()
+
+        print(f'Epoch {epoch}, train bpr {loss:.4f}, val bpr {val_loss:.4f}')
+
+        if val_loss <= best_val_loss:
+            # any improvement still updates the best checkpoint, but only an
+            # improvement > --min-delta resets patience: val bpr plateaus with
+            # ~±0.003 noise (Result7: epochs 60-192 bought 0.005), and waiting
+            # out that noise costs ~1 min/epoch -- same rule as train_han.py
+            wait = 0 if best_val_loss - val_loss > args.min_delta else wait + 1
+            best_epoch = epoch
+            best_val_loss = val_loss
+            torch.save({'model': model.state_dict(), 'tower': tower.state_dict()}, f'{checkpt_file}.pkl')
+        else:
+            wait += 1
+        if wait >= args.patience:
+            print(f'Early stop at epoch {epoch} (no val improvement > {args.min_delta} '
+                  f'for {args.patience} epochs)')
+            break
+
+    print('average train times', sum(train_times) / len(train_times))
+    print(f'Best epoch {best_epoch}, val bpr {best_val_loss:.4f}')
+
+    ckpt = torch.load(f'{checkpt_file}.pkl', map_location='cpu')
+    model.load_state_dict(ckpt['model'])
+    tower.load_state_dict(ckpt['tower'])
+    model = model.to(device)
+    tower = tower.to(device)
+
+    with torch.no_grad():
+        model.eval()
+        tower.eval()
+        dst_emb = infer_full_embeddings_final(model, eval_loader, device, keep_on_device=True)
+        src_emb = tower(src_attr_dev)
+
+        pos_scores = score_edges(src_emb, dst_emb, test_edges[:, 0], test_edges[:, 1])
+        neg_scores = score_edges(src_emb, dst_emb, test_edges[:, 0], test_negs)
+        results = evaluate_ranking(pos_scores, neg_scores)
+
+    print('Test ranking metrics:')
+    for k, v in results.items():
+        print(f'  {k}: {v:.4f}')
+    print_by_user(evaluate_ranking_by_user(
+        pos_scores, neg_scores, link_split['test_edges'], link_split['test_negs']))
+    deg = np.asarray(link_split['train_adj_src2dst'].sum(axis=1)).ravel()
+    strat = evaluate_ranking_stratified(pos_scores, neg_scores,
+                                        deg[link_split['test_edges'][:, 0]])
+    print('By user training degree:')
+    print_stratified(strat)
+    print(checkpt_file.split('/')[-1])
+
+    if args.save_emb and args.seed == args.seeds[-1]:
+        # persist embeddings from the LAST repeat seed only, for recommend.py
+        save_path = args.save_emb
+        if save_path == 'auto':
+            save_path = f'./output/{args.dataset}/lmsps_emb.pt'
+        torch.save({'model': 'LMSPS', 'dataset': args.dataset,
+                    'target_relation': args.target_relation,
+                    'paths': archs[args.arch][0], 'split_seed': args.split_seed,
+                    'P_emb': dst_emb.detach().cpu(), 'U_emb': src_emb.detach().cpu(),
+                    'user_tower': args.user_tower,
+                    'metrics': results, 'config': vars(args)}, save_path)
+        print(f'Embeddings saved to {save_path} (serve with recommend.py)')
+
+    os.remove(f'{checkpt_file}.pkl')
+
+    return results
+
+
 def main(args):
     if args.seed > 0:
         set_random_seed(args.seed)
 
-    g, adjs, init_labels, num_classes, dl, train_nid, val_nid, test_nid, test_nid_full \
+    g, adjs, init_labels, num_classes, dl, train_nid, val_nid, test_nid, test_nid_full, link_split \
         = load_dataset(args)
+
+    if args.task == 'link_prediction':
+        return main_link_prediction(args, g, dl, link_split)
 
     for k in adjs.keys():
         adjs[k].storage._value = None
@@ -421,11 +628,30 @@ def parse_args(args=None):
     parser.add_argument("--batch-size", type=int, default=10000)
     parser.add_argument("--patience", type=int, default=50,
                         help="early stop of times of the experiment")
+    parser.add_argument("--min-delta", type=float, default=5e-4,
+                        help="link-prediction only: minimum val-bpr improvement that resets "
+                             "patience. Smaller improvements still update the best checkpoint "
+                             "but count toward patience. 0 restores strict behavior")
     parser.add_argument("--edge_mask_ratio", type=float, default=0)
     parser.add_argument('--arch', type=str, default='DBLP')
     parser.add_argument("--eps", type=float, default=0)   #1e-12
     parser.add_argument("--ACM_keep_F", action='store_true', default=False,
                         help="whether to use Field type")
+    ## for link prediction
+    parser.add_argument("--task", type=str, default="classification", choices=["classification", "link_prediction"])
+    parser.add_argument("--target-relation", type=str, default="A,P",
+                        help="src_type,dst_type node-type letters for the link-prediction relation")
+    parser.add_argument("--num-neg-eval", type=int, default=99,
+                        help="number of sampled negatives per positive edge for val/test ranking")
+    parser.add_argument("--split-seed", type=int, default=0,
+                        help="fixed seed for the link-prediction edge split; independent of --seeds so search and final retrain share the same split")
+    parser.add_argument("--half-feats", action="store_true",
+                        help="store propagated features as fp16 on CPU (halves feats RAM; upcast to fp32 on GPU at gather time)")
+    parser.add_argument("--save-emb", type=str, default="auto",
+                        help="link-prediction only: where to save P/U embeddings for recommend.py ('auto' = ./output/<dataset>/lmsps_emb.pt, empty disables)")
+    parser.add_argument("--user-tower", type=str, default="embedding", choices=["embedding", "feats"],
+                        help="link-prediction user side: 'embedding' = free per-user trained vectors (same per-user capacity as metapath2vec/GAT -- use for comparisons); 'feats' = linear projection of raw user attributes (inductive; original behavior)")
+
 
     return parser.parse_args(args)
 
@@ -447,7 +673,9 @@ if __name__ == '__main__':
     print('results', results)
     
 
-    if args.dataset == 'IMDB':
+    if args.task == 'link_prediction':
+        pass  # per-seed ranking metrics already printed by main_link_prediction
+    elif args.dataset == 'IMDB':
         results.sort(key=lambda x: x[0], reverse=True)
         print(results)
         results = results[:5]

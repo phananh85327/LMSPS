@@ -5,9 +5,43 @@ from torch_sparse import SparseTensor
 
 import random
 
+
+class ShallowNodeTower(nn.Module):
+    """Simple linear projection of a node type's raw features into the shared
+    embedding space -- used for the non-searched side of a link-prediction pair
+    (e.g. Author/User), which runs no meta-path search of its own."""
+
+    def __init__(self, attr_dim, hidden):
+        super(ShallowNodeTower, self).__init__()
+        self.proj = nn.Linear(attr_dim, hidden)
+        nn.init.xavier_uniform_(self.proj.weight, gain=nn.init.calculate_gain("relu"))
+        nn.init.zeros_(self.proj.bias)
+
+    def forward(self, attr):
+        return self.proj(attr)
+
+
+class UserEmbeddingTower(nn.Module):
+    """Free per-user trainable vectors for the non-searched side of a
+    link-prediction pair -- the same per-user capacity metapath2vec (its
+    embedding table) and GAT (aggregation over the user's own train edges) get
+    implicitly, so cross-model comparisons isolate the ITEM encoder.
+    forward() takes user INDICES: pass src_attr = torch.arange(num_src) and
+    every ShallowNodeTower call site (tower(src_attr[idx]), tower(src_attr))
+    works unchanged. Transductive: an unseen user keeps an untrained row."""
+
+    def __init__(self, num_users, hidden):
+        super(UserEmbeddingTower, self).__init__()
+        self.emb = nn.Embedding(num_users, hidden)
+        nn.init.normal_(self.emb.weight, std=0.1)
+
+    def forward(self, idx):
+        return self.emb(idx)
+
+
 class LMSPS_Se(nn.Module):
     def __init__(self, hidden, nclass, feat_keys, label_feat_keys, tgt_key, dropout, 
-                 input_drop, device, num_final, residual=False, bns=False, data_size=None, num_sampled=1):
+                 input_drop, device, num_final, residual=False, bns=False, data_size=None, num_sampled=1, task='classification'):
         
         super(LMSPS_Se, self).__init__()
 
@@ -36,10 +70,12 @@ class LMSPS_Se(nn.Module):
                 self.labels_embeding[k] = nn.Parameter(
                     torch.Tensor(nclass, hidden).uniform_(-0.5, 0.5))
 
-        self.lr_output = nn.Sequential(
-            nn.Linear(hidden, nclass, bias=False),
-            nn.BatchNorm1d(nclass, affine=bns, track_running_stats=bns)
-        )
+        self.task = task
+        if self.task == 'classification':
+            self.lr_output = nn.Sequential(
+                nn.Linear(hidden, nclass, bias=False),
+                nn.BatchNorm1d(nclass, affine=bns, track_running_stats=bns)
+            )
 
         self.prelu = nn.PReLU()
         self.dropout = nn.Dropout(dropout)
@@ -58,11 +94,12 @@ class LMSPS_Se(nn.Module):
         gain = nn.init.calculate_gain("relu")
         if self.residual:
             nn.init.xavier_uniform_(self.res_fc.weight, gain=gain)
-        for layer in self.lr_output:
-            if isinstance(layer, nn.Linear):
-                nn.init.xavier_uniform_(layer.weight, gain=gain)
-                if layer.bias is not None:
-                    nn.init.zeros_(layer.bias)
+        if self.task == 'classification':
+            for layer in self.lr_output:
+                if isinstance(layer, nn.Linear):
+                    nn.init.xavier_uniform_(layer.weight, gain=gain)
+                    if layer.bias is not None:
+                        nn.init.zeros_(layer.bias)
 
 
     def alphas(self):
@@ -133,8 +170,9 @@ class LMSPS_Se(nn.Module):
             x = x + self.res_fc(tgt_feat)
 
         x = self.dropout(self.prelu(x))
-        x = self.lr_output(x)
-        
+        if self.task == 'classification':
+            x = self.lr_output(x)
+
         return x
 
     def set_tau(self, tau):
@@ -151,7 +189,7 @@ class LMSPS_Se(nn.Module):
         threshold = lam * max + (1 - lam) * min
 
 
-        _, idxl = torch.sort(seq_softmax, descending=True)  # descending为alse，升序，为True，降序
+        _, idxl = torch.sort(seq_softmax, descending=True)  # descending=False -> ascending, descending=True -> descending
 
         idx = idxl[:self.num_sampled]
 

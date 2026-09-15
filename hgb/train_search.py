@@ -1,3 +1,4 @@
+import math
 import time
 import uuid
 import argparse
@@ -16,12 +17,180 @@ from sparse_tools import SparseAdjList
 
 
 
+def main_link_prediction(args, g, dl, link_split):
+    if args.dataset == 'ACM':
+        tgt_type = 'P'
+    elif args.dataset == 'AMAZON':
+        tgt_type = 'P'
+    else:
+        assert 0, 'link prediction is currently only wired up for ACM and AMAZON'
+
+    device = 'cuda:{}'.format(args.gpu) if not args.cpu else 'cpu'
+
+    # =======
+    # neighbor aggregation (item/tgt side only -- searched via meta-paths)
+    # =======
+    max_length = args.num_hops + 1
+    prop_tic = datetime.datetime.now()
+    g = hg_propagate_feat_dgl(g, tgt_type, args.num_hops, max_length, echo=True)
+
+    feats = {}
+    keys = list(g.nodes[tgt_type].data.keys())
+    print(f'For tgt {tgt_type}, feature keys {keys}')
+    for k in keys:
+        feats[k] = g.nodes[tgt_type].data.pop(k)
+    if args.tgt_ended_paths:
+        # keep only tgt...tgt walks (len >= 2): every candidate is then a real
+        # target-type neighbor graph, directly usable as a HAN meta-path adjacency
+        assert not args.residual, '--tgt-ended-paths drops the raw tgt key that --residual needs'
+        feats = {k: v for k, v in feats.items() if len(k) >= 2 and k[-1] == tgt_type}
+        print(f'--tgt-ended-paths: {len(feats)} candidates {list(feats.keys())}')
+    if args.dedupe_reversed:
+        assert args.tgt_ended_paths, '--dedupe-reversed needs --tgt-ended-paths (reverse of a tgt-ended path is tgt-ended)'
+        # reverse(X)'s walk-count matrix is the transpose of X's, and
+        # build_metapath_graphs symmetrizes, so X and reverse(X) yield
+        # near-identical HAN graphs. Result6/8: the search selected such a pair
+        # (PCPPUP + PUPPCP) and HAN's semantic attention put ALL its weight on
+        # it -- one relation occupying two of the five slots. Keeping one
+        # canonical member per reverse-pair makes every discovered set
+        # redundancy-free by construction (palindromes are their own reverse).
+        before = len(feats)
+        feats = {k: v for k, v in feats.items() if k <= k[::-1]}
+        print(f'--dedupe-reversed: {before} -> {len(feats)} candidates {list(feats.keys())}')
+    if args.half_feats:
+        # fp16 storage halves CPU RAM for the big feats dict; the gather points in
+        # train_search_lp / infer_full_embeddings_* upcast to fp32 on the GPU
+        feats = {k: v.half() for k, v in feats.items()}
+    data_size = {k: v.size(-1) for k, v in feats.items()}
+    prop_toc = datetime.datetime.now()
+    print(f'Time used for feat prop {prop_toc - prop_tic}')
+    gc.collect()
+
+    # no label propagation for link prediction -- see plan's out-of-scope note
+    label_feats = {}
+
+    # =======
+    # counterpart side (author/user) -- raw attributes only, no meta-path search
+    # =======
+    src_name, dst_name = args.target_relation.split(',')
+    src_type_id = NODE_TYPE_IDS[args.dataset][src_name]
+    if args.user_tower == 'embedding':
+        # tower consumes indices: arange makes every src_attr[...] gather a passthrough
+        src_attr = torch.arange(link_split['num_src'])
+    else:
+        src_raw_attr = dl.nodes['attr'][src_type_id]
+        if src_raw_attr is None:
+            # identity fallback is a dense [num_src, num_src]: fine for a tiny
+            # type, tens-of-GB OOM at AMAZON user scale -- refuse loudly instead
+            assert link_split['num_src'] <= 20000, (
+                f'node type {src_name} has no attributes and is too large for a '
+                f'torch.eye fallback -- use --user-tower embedding')
+            src_attr = torch.eye(link_split['num_src'])
+        else:
+            src_attr = torch.FloatTensor(src_raw_attr)
+
+    # =======
+    # search-internal train/val split of the train_edges (bi-level DARTS optimization);
+    # link_split's real val_edges/test_edges never touch the architecture search
+    # =======
+    rng = np.random.default_rng(args.seed)
+    perm = rng.permutation(link_split['train_edges'].shape[0])
+    half = len(perm) // 2
+    lp_train_edges = link_split['train_edges'][perm[:half]]
+    lp_val_edges = link_split['train_edges'][perm[half:]]
+
+    train_sampler = TrainEdgeSampler(lp_train_edges, link_split['train_adj_src2dst'], seed=args.seed)
+    val_sampler = TrainEdgeSampler(lp_val_edges, link_split['train_adj_src2dst'], seed=args.seed + 1)
+
+    # =======
+    # eval loader over ALL tgt-type (item) nodes, for full embedding inference
+    # =======
+    num_dst = link_split['num_dst']
+    batchsize = 2 * args.batch_size
+    eval_loader = []
+    for batch_idx in range((num_dst - 1) // batchsize + 1):
+        batch_start = batch_idx * batchsize
+        batch_end = min(num_dst, (batch_idx + 1) * batchsize)
+        batch = torch.arange(batch_start, batch_end)
+        batch_feats = {k: x[batch_start:batch_end] for k, x in feats.items()}
+        eval_loader.append((batch, batch_feats, {}, None))
+
+    if args.ns_linear:
+        ns_ratio = 2 * args.num_hops / (math.e ** (0.6 * args.num_hops))
+        if ns_ratio > 0.5:
+            ns_ratio = 0.5
+        args.ns = math.floor(len(feats) * ns_ratio)
+    if args.ns > len(feats):
+        args.ns = len(feats)
+    print(f"num sampled :{args.ns}")
+
+    # =======
+    # Construct network
+    # =======
+    torch.cuda.empty_cache()
+    gc.collect()
+
+    model = LMSPS_Se(args.hidden, 1, feats.keys(), label_feats.keys(), tgt_type,
+        args.dropout, args.input_drop, device, args.num_final, args.residual,
+        bns=args.bns, data_size=data_size, num_sampled=args.ns, task='link_prediction')
+    model = model.to(device)
+    if args.user_tower == 'embedding':
+        tower = UserEmbeddingTower(link_split['num_src'], args.hidden).to(device)
+    else:
+        tower = ShallowNodeTower(src_attr.shape[1], args.hidden).to(device)
+
+    print(model)
+    print(tower)
+    print("# Params:", get_n_params(model) + get_n_params(tower))
+
+    optimizer_w = torch.optim.Adam(list(model.parameters()) + list(tower.parameters()),
+                                    lr=args.lr, weight_decay=args.weight_decay)
+    optimizer_a = torch.optim.Adam(model.alphas(), lr=args.alr)
+
+    train_times = []
+    for epoch in tqdm(range(args.stage)):
+        gc.collect()
+        torch.cuda.synchronize()
+
+        eps = 1 - epoch / (args.stage - 1)
+        epoch_sampled = model.epoch_sample(eps)
+        meta_path_sampled = [model.all_meta_path[i] for i in range(model.num_feats) if i in epoch_sampled]
+        label_meta_path_sampled = [model.all_meta_path[i] for i in range(model.num_feats, model.num_paths) if i in epoch_sampled]
+
+        start = time.time()
+        model.set_tau(args.tau_max - (args.tau_max - args.tau_min) * epoch / (args.stage - 1))
+
+        loss_w, loss_a = train_search_lp(model, tower, feats, label_feats, src_attr,
+                                          epoch_sampled, meta_path_sampled, label_meta_path_sampled,
+                                          optimizer_w, optimizer_a, train_sampler, val_sampler,
+                                          args.batch_size, device)
+        torch.cuda.synchronize()
+        end = time.time()
+        train_times.append(end - start)
+        print(f'Epoch {epoch}, train bpr {loss_w:.4f}, val bpr {loss_a:.4f}')
+
+    ##################direct evaluation##############
+    tower.eval()
+    with torch.no_grad():
+        tower_src_emb = tower(src_attr.to(device))  # stays on GPU; project_op_lp scores there
+
+    geno_out = project_op_lp(list(feats.keys()), model, eval_loader, device,
+                              tower_src_emb, torch.LongTensor(link_split['val_edges']),
+                              torch.LongTensor(link_split['val_negs']), args.repeat)
+    print('average train times', sum(train_times) / len(train_times))
+    print("paths {}\n".format(geno_out))
+
+
 def main(args):
     if args.seed > 0:
         set_random_seed(args.seed)
 
-    g, adjs, init_labels, num_classes, dl, train_nid, val_nid, test_nid, test_nid_full \
+    g, adjs, init_labels, num_classes, dl, train_nid, val_nid, test_nid, test_nid_full, link_split \
         = load_dataset(args)
+
+    if args.task == 'link_prediction':
+        main_link_prediction(args, g, dl, link_split)
+        return
 
     for k in adjs.keys():
         adjs[k].storage._value = None
@@ -529,6 +698,24 @@ def parse_args(args=None):
     parser.add_argument("--num_final", type=int, default=60)
     parser.add_argument("--ACM_keep_F", action='store_true', default=False,
                         help="whether to use Field type")
+    ## for link prediction
+    parser.add_argument("--task", type=str, default="classification", choices=["classification", "link_prediction"])
+    parser.add_argument("--target-relation", type=str, default="A,P",
+                        help="src_type,dst_type node-type letters for the link-prediction relation")
+    parser.add_argument("--num-neg-eval", type=int, default=99,
+                        help="number of sampled negatives per positive edge for val/test ranking")
+    parser.add_argument("--split-seed", type=int, default=0,
+                        help="fixed seed for the link-prediction edge split; independent of --seeds so search and final retrain share the same split")
+    parser.add_argument("--tgt-ended-paths", action="store_true",
+                        help="restrict search candidates to paths that start AND end at the target type, so every discovered path is usable as a HAN meta-path adjacency")
+    parser.add_argument("--dedupe-reversed", action="store_true",
+                        help="with --tgt-ended-paths: keep one canonical candidate per reverse-pair "
+                             "(X vs reversed X). Their symmetrized HAN graphs are near-identical, so "
+                             "a set containing both wastes a path slot (seen in Result5/6/8)")
+    parser.add_argument("--half-feats", action="store_true",
+                        help="store propagated features as fp16 on CPU (halves feats RAM; upcast to fp32 on GPU at gather time)")
+    parser.add_argument("--user-tower", type=str, default="embedding", choices=["embedding", "feats"],
+                        help="link-prediction user side: 'embedding' = free per-user trained vectors (same per-user capacity as metapath2vec/GAT -- use for comparisons); 'feats' = linear projection of raw user attributes (inductive; original behavior)")
     return parser.parse_args(args)
 
 if __name__ == '__main__':

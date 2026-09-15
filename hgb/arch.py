@@ -11,4 +11,17 @@ archs = {
         ['PPP', 'PAPP', 'PCPA', 'PCPP', 'PPPC', 'PPPP', 'PAPAP', 'PAPPP', 'PCPAP', 'PCPPA', 'PPAPA', 'PPAPC', 'PPAPP',
          'PAPAPA', 'PAPCPA', 'PAPPAP', 'PAPPCP', 'PAPPPP', 'PCPAPP', 'PCPCPP', 'PCPPAP', 'PCPPPP', 'PPAPAP', 'PPAPCP',
          'PPAPPA', 'PPAPPP', 'PPCPAP', 'PPPAPA', 'PPPCPA', 'PPPPPP'], []],
+    "amazon_lp_han": [
+        ['PCPPUP', 'PPPPUP', 'PPUPUP', 'PUPCCP', 'PUPCPP'], []],
+    "amazon_lp_han2": [
+        ['PCPPUP', 'PPPPUP', 'PPUPPP', 'PPUPUP', 'PUPPCP'], []],
+    "amazon_lp_han3": [
+        ['PUPP', 'PCPCP', 'PPCCCP', 'PPCPUP', 'PPUPUP'], []],
+    # hand-engineered baseline (what an expert would define with NO discovery):
+    # co-purchase, same-category, co-reviewed, 2-hop co-purchase, sibling-category.
+    # 5 paths to match the discovered amazon_lp_han count, so the ablation
+    # "does AUTOMATIC path discovery beat manual paths?" compares path QUALITY at
+    # an equal path budget -- see random_paths.py for the matching random row.
+    "amazon_lp_manual": [
+        ['PP', 'PCP', 'PUP', 'PPP', 'PCCP'], []],
 }

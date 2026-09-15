@@ -58,10 +58,43 @@ class Conv1d1x1(nn.Module):
                 assert False
 
 
+class ShallowNodeTower(nn.Module):
+    """Simple linear projection of a node type's raw features into the shared
+    embedding space -- used for the non-searched side of a link-prediction pair
+    (e.g. Author/User), which runs no meta-path search of its own."""
+
+    def __init__(self, attr_dim, hidden):
+        super(ShallowNodeTower, self).__init__()
+        self.proj = nn.Linear(attr_dim, hidden)
+        nn.init.xavier_uniform_(self.proj.weight, gain=nn.init.calculate_gain("relu"))
+        nn.init.zeros_(self.proj.bias)
+
+    def forward(self, attr):
+        return self.proj(attr)
+
+
+class UserEmbeddingTower(nn.Module):
+    """Free per-user trainable vectors for the non-searched side of a
+    link-prediction pair -- the same per-user capacity metapath2vec (its
+    embedding table) and GAT (aggregation over the user's own train edges) get
+    implicitly, so cross-model comparisons isolate the ITEM encoder.
+    forward() takes user INDICES: pass src_attr = torch.arange(num_src) and
+    every ShallowNodeTower call site (tower(src_attr[idx]), tower(src_attr))
+    works unchanged. Transductive: an unseen user keeps an untrained row."""
+
+    def __init__(self, num_users, hidden):
+        super(UserEmbeddingTower, self).__init__()
+        self.emb = nn.Embedding(num_users, hidden)
+        nn.init.normal_(self.emb.weight, std=0.1)
+
+    def forward(self, idx):
+        return self.emb(idx)
+
+
 class LMSPS(nn.Module):
     def __init__(self, nfeat, hidden, nclass, feat_keys, label_feat_keys, tgt_type,
                  dropout, input_drop, att_dropout, label_drop, n_layers_2, residual=False, 
-                 bns=False, data_size=None, path=[], label_path=[], eps=0, device=None):
+                 bns=False, data_size=None, path=[], label_path=[], eps=0, device=None, task='classification'):
         super(LMSPS, self).__init__()
 
         self.feat_keys = sorted(feat_keys)
@@ -69,6 +102,7 @@ class LMSPS(nn.Module):
         self.num_channels = num_channels = len(path) + len(label_path)
         self.tgt_type = tgt_type
         self.residual = residual
+        self.task = task
 
         self.data_size = data_size 
         self.path = path
@@ -114,13 +148,14 @@ class LMSPS(nn.Module):
                 nn.Dropout(dropout)
             ]
 
-        lr_output_layers = [
-            [nn.Linear(hidden, hidden, bias=not bns)] + add_nonlinear_layers(hidden, dropout, bns)
-            for _ in range(n_layers_2-1)]
-        self.lr_output = nn.Sequential(*(
-            [ele for li in lr_output_layers for ele in li] + [
-            nn.Linear(hidden, nclass, bias=False),
-            nn.BatchNorm1d(nclass, affine=bns, track_running_stats=bns)]))
+        if self.task == 'classification':
+            lr_output_layers = [
+                [nn.Linear(hidden, hidden, bias=not bns)] + add_nonlinear_layers(hidden, dropout, bns)
+                for _ in range(n_layers_2-1)]
+            self.lr_output = nn.Sequential(*(
+                [ele for li in lr_output_layers for ele in li] + [
+                nn.Linear(hidden, nclass, bias=False),
+                nn.BatchNorm1d(nclass, affine=bns, track_running_stats=bns)]))
 
         self.prelu = nn.PReLU()
         self.dropout = nn.Dropout(dropout)
@@ -141,15 +176,16 @@ class LMSPS(nn.Module):
         nn.init.zeros_(self.layer_final.bias)
         if self.residual:
             nn.init.xavier_uniform_(self.res_fc.weight, gain=gain)
-        for layer in self.lr_output:
-            if isinstance(layer, nn.Linear):
-                nn.init.xavier_uniform_(layer.weight, gain=gain)
-                if layer.bias is not None:
-                    nn.init.zeros_(layer.bias)
+        if self.task == 'classification':
+            for layer in self.lr_output:
+                if isinstance(layer, nn.Linear):
+                    nn.init.xavier_uniform_(layer.weight, gain=gain)
+                    if layer.bias is not None:
+                        nn.init.zeros_(layer.bias)
 
     def forward(self, batch, feature_dict, label_dict={}, mask=None):
         if isinstance(feature_dict[self.tgt_type], torch.Tensor):
-            mapped_feats = {k: self.input_drop(x @ self.embeding[k]) for k, x in feature_dict.items()}  # @矩阵-向量乘法
+            mapped_feats = {k: self.input_drop(x @ self.embeding[k]) for k, x in feature_dict.items()}  # @ = matrix-vector multiplication
         elif isinstance(feature_dict[self.tgt_type], SparseTensor):
             mapped_feats = {k: self.input_drop(x @ self.embeding[k[-1]]) for k, x in feature_dict.items()}
         else:
@@ -183,7 +219,8 @@ class LMSPS(nn.Module):
             out = out / (torch.max(torch.norm(out, dim=1, keepdim=True), self.epsilon))
 
         out = self.dropout(self.prelu(out))
-        out = self.lr_output(out)
+        if self.task == 'classification':
+            out = self.lr_output(out)
 
         return out
 

@@ -19,11 +19,15 @@ from tqdm import tqdm
 
 sys.path.append('../data')
 from data_loader import data_loader
+from link_data import build_link_split, csr_to_sparse_tensor, TrainEdgeSampler
 # import src.utils_lib
 
 import warnings
 warnings.filterwarnings("ignore", message="Setting attributes on ParameterList is not supported.")
 warnings.filterwarnings("ignore", message="Setting attributes on ParameterDict is not supported.")
+
+NODE_TYPE_IDS = {'ACM': {'P': 0, 'A': 1, 'C': 2, 'K': 3},
+                 'AMAZON': {'P': 0, 'C': 1, 'U': 2}}
 
 
 def project_op(keys, model, criterion, eval_loader, device, trainval_point, valtest_point, labels, repeat):  #
@@ -78,6 +82,230 @@ def infer_eval(model, criterion, eval_loader, device, index_sampled, trainval_po
 
     return loss_train + loss_val
 
+
+
+def bpr_loss(pos_scores, neg_scores):
+    """BPR pairwise ranking loss. pos_scores: [N]; neg_scores: [N] or [N, K]
+    (broadcast against pos_scores when K sampled negatives per positive)."""
+    if neg_scores.dim() > pos_scores.dim():
+        pos_scores = pos_scores.unsqueeze(-1)
+    return -F.logsigmoid(pos_scores - neg_scores).mean()
+
+
+def score_edges(src_emb, dst_emb, src_idx, dst_idx, chunk_size=1024):
+    """Dot-product score for (src_idx[i], dst_idx[i]) pairs. dst_idx may be
+    [N] (one dst per src) or [N, K] (K candidates per src, e.g. sampled negatives).
+    The [N, K] case is scored in row chunks: gathering dst_emb[dst_idx] in one
+    shot materializes an [N, K, hidden] tensor -- ~53 GB for AMAZON's ~260k val
+    edges x 99 negatives x 512 dims -- while chunks stay around 200 MB."""
+    if dst_idx.dim() == 1:
+        return (src_emb[src_idx] * dst_emb[dst_idx]).sum(-1)
+    out = torch.empty(dst_idx.shape, dtype=src_emb.dtype, device=src_emb.device)
+    for start in range(0, dst_idx.size(0), chunk_size):
+        end = min(start + chunk_size, dst_idx.size(0))
+        s = src_emb[src_idx[start:end]].unsqueeze(1)
+        out[start:end] = (s * dst_emb[dst_idx[start:end]]).sum(-1)
+    return out
+
+
+def evaluate_ranking(pos_scores, neg_scores, ks=(5, 10, 20)):
+    """pos_scores: [N], neg_scores: [N, K] sampled-negative scores per positive
+    edge. Ranks the single positive among its K negatives and computes
+    Precision@k/Recall@k/NDCG@k/Hit@k, averaged over all N edges. With exactly
+    one relevant item per edge, Hit@k is the binary top-k indicator and
+    Recall@k coincides with it; Precision@k = Hit@k / k."""
+    num_candidates = neg_scores.size(1) + 1
+    all_scores = torch.cat([pos_scores.unsqueeze(1), neg_scores], dim=1)
+    ranks = (all_scores >= all_scores[:, :1]).sum(dim=1).float()
+
+    results = {}
+    for k in ks:
+        k = min(k, num_candidates)
+        hit = (ranks <= k).float()
+        ndcg = hit / torch.log2(ranks + 1)
+        results[f'Precision@{k}'] = (hit / k).mean().item()
+        results[f'Recall@{k}'] = hit.mean().item()
+        results[f'NDCG@{k}'] = ndcg.mean().item()
+        results[f'Hit@{k}'] = hit.mean().item()
+    return results
+
+
+def evaluate_ranking_by_user(pos_scores, neg_scores, test_edges, test_negs,
+                             ks=(5, 10, 20)):
+    """Per-USER ranking metrics: all test edges of a user are ranked together
+    against the union of that user's sampled negatives, so the four metrics
+    genuinely differ (unlike the per-edge protocol, where a single positive
+    forces Recall@k == Hit@k and Precision@k == Hit@k / k).
+
+    For user u with P_u test positives and candidate set C_u = positives +
+    deduplicated negatives (negatives are sampled per edge, so the same item can
+    appear for several of u's edges -- scored identically, kept once):
+      Precision@k = |top-k ∩ P_u| / k
+      Recall@k    = |top-k ∩ P_u| / |P_u|
+      NDCG@k      = binary-gain DCG over top-k / IDCG(min(|P_u|, k))
+      Hit@k       = 1 if any positive in top-k
+    averaged over users (macro), so heavy users get ONE vote here versus one
+    vote per edge in evaluate_ranking. Ties rank pessimistically (same rule as
+    evaluate_ranking). test_edges: [N, 2] (src, dst); test_negs: [N, K] dst ids.
+    """
+    pos = pos_scores.detach().cpu().numpy().astype(np.float64)
+    neg = neg_scores.detach().cpu().numpy().astype(np.float64)
+    users = np.asarray(test_edges)[:, 0]
+    pos_items = np.asarray(test_edges)[:, 1]
+    neg_items = np.asarray(test_negs)
+
+    order = np.argsort(users, kind='stable')
+    users_s, pos_s, pitems_s = users[order], pos[order], pos_items[order]
+    neg_s, nitems_s = neg[order], neg_items[order]
+    starts = np.flatnonzero(np.r_[True, users_s[1:] != users_s[:-1]])
+    bounds = np.r_[starts, users_s.size]
+
+    idcg_table = np.cumsum(1.0 / np.log2(np.arange(2, max(ks) + 2)))
+    sums = {k: np.zeros(4) for k in ks}  # precision, recall, ndcg, hit
+    n_users = starts.size
+    for i in range(n_users):
+        lo, hi = bounds[i], bounds[i + 1]
+        p_sc, p_it = pos_s[lo:hi], pitems_s[lo:hi]
+        n_it = nitems_s[lo:hi].ravel()
+        n_sc = neg_s[lo:hi].ravel()
+        uniq, first = np.unique(n_it, return_index=True)
+        keep = ~np.isin(uniq, p_it)
+        cand = np.concatenate([p_sc, n_sc[first[keep]]])
+        ranks = (cand[None, :] >= p_sc[:, None]).sum(1)  # >= counts self
+        npos = hi - lo
+        for k in ks:
+            in_top = ranks <= k
+            h = int(in_top.sum())
+            dcg = (1.0 / np.log2(ranks[in_top] + 1)).sum()
+            idcg = idcg_table[min(npos, k) - 1]
+            sums[k] += (h / k, h / npos, dcg / idcg, 1.0 if h else 0.0)
+
+    results = {'n_users': n_users}
+    for k in ks:
+        prec, rec, ndcg, hit = sums[k] / n_users
+        results[f'Precision@{k}'] = prec
+        results[f'Recall@{k}'] = rec
+        results[f'NDCG@{k}'] = ndcg
+        results[f'Hit@{k}'] = hit
+    return results
+
+
+def print_by_user(res):
+    res = dict(res)
+    n = res.pop('n_users')
+    print(f'Per-user ranking metrics ({n} users, positives pooled per user):')
+    for k, v in res.items():
+        print(f'  {k}: {v:.4f}')
+
+
+def evaluate_ranking_stratified(pos_scores, neg_scores, train_degrees,
+                                buckets=((0, 0), (1, 5), (6, 20), (21, None)),
+                                ks=(10,)):
+    """Ranking metrics per USER-training-degree bucket (how many train
+    interactions the user behind each test edge has). Shows WHERE a model wins:
+    free-embedding / graph-aggregation user sides excel on well-observed users
+    but have no signal for near-cold ones, while feature towers degrade more
+    gracefully. train_degrees: [N] array aligned with pos_scores rows."""
+    out = {}
+    deg = np.asarray(train_degrees)
+    for lo, hi in buckets:
+        mask = (deg >= lo) if hi is None else ((deg >= lo) & (deg <= hi))
+        if hi is None:
+            name = f'deg>={lo}'
+        elif lo == hi:
+            name = f'deg={lo}'
+        else:
+            name = f'deg {lo}-{hi}'
+        n = int(mask.sum())
+        if n == 0:
+            continue
+        m = torch.from_numpy(mask).to(pos_scores.device)
+        out[name] = {'n_edges': n,
+                     **evaluate_ranking(pos_scores[m], neg_scores[m], ks=ks)}
+    return out
+
+
+def print_stratified(strat):
+    """Compact per-bucket report (NDCG/Hit only -- Precision/Recall duplicate
+    Hit in the 1-positive protocol)."""
+    for name, res in strat.items():
+        metrics = '  '.join(f'{k} {v:.4f}' for k, v in res.items()
+                            if k.startswith(('NDCG', 'Hit')))
+        print(f'  {name:<9} ({res["n_edges"]:>7} edges)  {metrics}')
+
+
+def infer_full_embeddings_search(model, eval_loader, device, index_sampled, meta_path_sampled, label_meta_path_sampled,
+                                  keep_on_device=False):
+    """Compute full target-type-node embeddings with the LMSPS_Se (search-stage)
+    model, reusing infer_eval's eval_loader node-batching pattern."""
+    model.eval()
+    embs = []
+    with torch.no_grad():
+        for batch, batch_feats, batch_labels_feats, batch_mask in eval_loader:
+            batch_feats = {k: x.to(device).float() for k, x in batch_feats.items() if
+                           k in meta_path_sampled or (model.residual and k == model.tgt_key)}
+            batch_labels_feats = {k: x.to(device) for k, x in batch_labels_feats.items() if k in label_meta_path_sampled}
+            out = model(index_sampled, batch_feats, batch_labels_feats, meta_path_sampled,
+                        label_meta_path_sampled)
+            embs.append(out if keep_on_device else out.cpu())
+    return torch.cat(embs, dim=0)
+
+
+def infer_eval_lp(model, eval_loader, device, index_sampled, meta_path_sampled, label_meta_path_sampled,
+                   tower_src_emb, val_edges, val_negs):
+    """Search-stage link-prediction validation BPR loss -- used as project_op_lp's
+    selection criterion, mirroring infer_eval's role for classification."""
+    dst_emb = infer_full_embeddings_search(model, eval_loader, device, index_sampled,
+                                            meta_path_sampled, label_meta_path_sampled,
+                                            keep_on_device=True)
+    src_idx = val_edges[:, 0]
+    pos_dst_idx = val_edges[:, 1]
+    pos_scores = score_edges(tower_src_emb, dst_emb, src_idx, pos_dst_idx)
+    neg_scores = score_edges(tower_src_emb, dst_emb, src_idx, val_negs)
+    return bpr_loss(pos_scores, neg_scores).item()
+
+
+def infer_full_embeddings_final(model, eval_loader, device, keep_on_device=False):
+    """Compute full target-type-node embeddings with the LMSPS (final-retrain)
+    model, reusing the same node-batching pattern."""
+    model.eval()
+    embs = []
+    with torch.no_grad():
+        for batch, batch_feats, batch_labels_feats, batch_mask in eval_loader:
+            batch_feats = {k: x.to(device).float() for k, x in batch_feats.items()}
+            batch_labels_feats = {k: x.to(device) for k, x in batch_labels_feats.items()}
+            out = model(batch, batch_feats, batch_labels_feats, batch_mask)
+            embs.append(out if keep_on_device else out.cpu())
+    return torch.cat(embs, dim=0)
+
+
+def project_op_lp(keys, model, eval_loader, device, tower_src_emb, val_edges, val_negs, repeat):
+    """Link-prediction counterpart of project_op: try `repeat` sampled
+    architectures, keep the one minimizing validation BPR loss."""
+    # one-time device residency: every repeat scores on the GPU, so keep the
+    # user embeddings and eval edges there instead of re-transferring per repeat
+    tower_src_emb = tower_src_emb.to(device)
+    val_edges = val_edges.to(device)
+    val_negs = val_negs.to(device)
+    compare = lambda x, y: x < y
+    crit_extrema = None
+    best_index = 0
+    for opid in range(repeat):
+        index_sampled = model.epoch_sample(0)
+        meta_path_sampled = [model.all_meta_path[i] for i in range(model.num_feats) if i in index_sampled]
+        label_meta_path_sampled = [model.all_meta_path[i] for i in range(model.num_feats, model.num_paths) if i in index_sampled]
+        crit = infer_eval_lp(model, eval_loader, device, index_sampled, meta_path_sampled, label_meta_path_sampled,
+                              tower_src_emb, val_edges, val_negs)
+        print("val bpr loss {}\n".format(crit))
+        if crit_extrema is None or compare(crit, crit_extrema):
+            crit_extrema = crit
+            best_index = index_sampled
+    path = []
+    label_path = []
+    for i, index in enumerate(best_index):
+        if index < len(keys):
+            path.append(keys[index])
+    return [path, label_path]
 
 
 def set_random_seed(seed=0):
@@ -145,18 +373,25 @@ def hg_propagate_feat_dgl(g, tgt_type, num_hops, max_length, echo=False):
 
 
 def hg_propagate_feat_dgl_path(g, tgt_type, num_hops, max_length, meta_path, echo=False):
+    # A propagated key is built source-outward: pushing key k along stype->dtype
+    # yields f'{dtype}{k}', so producing path X requires exactly X's suffixes as
+    # intermediates ('PUPP' needs 'P' -> 'PP' -> 'UPP' -> 'PUPP'). Restricting to
+    # those suffixes skips every other candidate path -- at AMAZON hops-5 scale
+    # that is ~20 keys instead of 125+, cutting propagation time and peak RAM.
+    # (Length-1 raw-feature keys are inputs, never produced, so never skipped.)
+    wanted = set()
+    for ele in meta_path:
+        for i in range(len(ele) - 1):
+            wanted.add(ele[i:])
     for hop in range(1, max_length):
-        #reserve_heads = [ele[:hop] for ele in extra_metapath if len(ele) > hop]
-
         for etype in g.etypes:
             stype, _, dtype = g.to_canonical_etype(etype)
 
             for k in list(g.nodes[stype].data.keys()):
                 if len(k) == hop:
-                    # if hop == max_length - 1:
-                    #     import code
-                    #     code.interact(local=locals())
                     current_dst_name = f'{dtype}{k}'
+                    if current_dst_name not in wanted:
+                        continue
                     if (hop == num_hops and dtype != tgt_type ) \
                       or (hop > num_hops):
                         continue
@@ -594,6 +829,84 @@ def train_search_new(model, feats, label_feats, labels_cuda, loss_fcn, optimizer
 
 
 
+def train_search_lp(model, tower, feats, label_feats, src_attr, epoch_sampled, meta_path_sampled,
+                     label_meta_path_sampled, optimizer_w, optimizer_a, train_sampler, val_sampler,
+                     batch_size, device, scalar=None):
+    """Link-prediction counterpart of train_search_new: same bi-level (DARTS)
+    optimizer_w/optimizer_a structure, but batches are edge triplets
+    (src, pos_dst, neg_dst) instead of node indices, and the loss is BPR over
+    dot-product scores instead of a classification criterion."""
+    model.train()
+    tower.train()
+    total_loss = 0.
+    val_total_loss = 0.
+    iter_num = train_sampler.num_batches(batch_size)
+    src_attr_dev = src_attr.to(device)
+
+    def run(dst_ids):
+        batch_feats = {k: x[dst_ids].to(device).float() for k, x in feats.items()
+                       if k in meta_path_sampled or (model.residual and k == model.tgt_key)}
+        batch_label_feats = {k: x[dst_ids].to(device) for k, x in label_feats.items()
+                              if k in label_meta_path_sampled}
+        return model(epoch_sampled, batch_feats, batch_label_feats, meta_path_sampled, label_meta_path_sampled)
+
+    for _ in range(iter_num):
+        src, pos_dst, neg_dst = train_sampler.sample_batch(batch_size)
+        val_src, val_pos_dst, val_neg_dst = val_sampler.sample_batch(batch_size)
+
+        ########################################train
+        optimizer_w.zero_grad()
+        dst_emb = run(torch.cat([pos_dst, neg_dst]))
+        pos_emb, neg_emb = dst_emb[:len(pos_dst)], dst_emb[len(pos_dst):]
+        src_emb = tower(src_attr_dev[src.to(device)])
+        loss_train = bpr_loss((src_emb * pos_emb).sum(-1), (src_emb * neg_emb).sum(-1))
+        loss_train.backward()
+        optimizer_w.step()
+
+        ########################################val  update a
+        optimizer_a.zero_grad()
+        val_dst_emb = run(torch.cat([val_pos_dst, val_neg_dst]))
+        val_pos_emb, val_neg_emb = val_dst_emb[:len(val_pos_dst)], val_dst_emb[len(val_pos_dst):]
+        val_src_emb = tower(src_attr_dev[val_src.to(device)])
+        val_loss_train = bpr_loss((val_src_emb * val_pos_emb).sum(-1), (val_src_emb * val_neg_emb).sum(-1))
+        val_loss_train.backward()
+        optimizer_a.step()
+
+        total_loss += loss_train.item()
+        val_total_loss += val_loss_train.item()
+
+    return total_loss / iter_num, val_total_loss / iter_num
+
+
+def train_lp(model, tower, feats, label_feats, src_attr, optimizer, train_sampler, batch_size, device, scalar=None):
+    """Link-prediction counterpart of train (final-retrain stage): edge-triplet
+    batches and BPR loss instead of node-index batches and a classification
+    criterion."""
+    model.train()
+    tower.train()
+    total_loss = 0.
+    iter_num = train_sampler.num_batches(batch_size)
+    src_attr_dev = src_attr.to(device)
+
+    for _ in range(iter_num):
+        src, pos_dst, neg_dst = train_sampler.sample_batch(batch_size)
+        dst_ids = torch.cat([pos_dst, neg_dst])
+        batch_feats = {k: x[dst_ids].to(device).float() for k, x in feats.items()}
+        batch_label_feats = {k: x[dst_ids].to(device) for k, x in label_feats.items()}
+
+        optimizer.zero_grad()
+        dst_emb = model(dst_ids, batch_feats, batch_label_feats)
+        pos_emb, neg_emb = dst_emb[:len(pos_dst)], dst_emb[len(pos_dst):]
+        src_emb = tower(src_attr_dev[src.to(device)])
+        loss_train = bpr_loss((src_emb * pos_emb).sum(-1), (src_emb * neg_emb).sum(-1))
+        loss_train.backward()
+        optimizer.step()
+
+        total_loss += loss_train.item()
+
+    return total_loss / iter_num
+
+
 def train_search_two(model, feats, label_feats, labels_cuda, loss_fcn, optimizer_w, optimizer_a, train_loader, val_loader, meta_sampled, label_sampled, evaluator, mask=None, scalar=None):
     model.train()
     device = labels_cuda.device
@@ -845,6 +1158,18 @@ def edge_mask(etypes,adjs,edge_mask_ratio):
 def load_dataset(args):
     dl = data_loader(f'{args.root}/{args.dataset}')
 
+    link_split = None
+    if getattr(args, 'task', 'classification') == 'link_prediction':
+        src_name, dst_name = args.target_relation.split(',')
+        type_ids = NODE_TYPE_IDS[args.dataset]
+        assert src_name in type_ids and dst_name in type_ids, (
+            f'--target-relation "{args.target_relation}" names unknown node types for '
+            f'{args.dataset} (valid: {sorted(type_ids)}; e.g. ACM "A,P", AMAZON "U,P")')
+        # split seed is fixed independently of --seeds so the search stage and the
+        # final retrain (and every repeat seed) share the same train/val/test edges
+        link_split = build_link_split(dl, type_ids[src_name], type_ids[dst_name],
+                                       seed=args.split_seed, num_neg_eval=args.num_neg_eval)
+
     edge_mask_ratio = args.edge_mask_ratio
 
     # use one-hot index vectors for nods with no attributes
@@ -1025,6 +1350,12 @@ def load_dataset(args):
         PP = PP.set_diag()
         adjs = [PP] + adjs[2:]
 
+        if link_split is not None:
+            PA = csr_to_sparse_tensor(link_split['train_adj_src2dst'], transpose=True)
+            AP = csr_to_sparse_tensor(link_split['train_adj_src2dst'], transpose=False)
+            adjs[1] = PA
+            adjs[2] = AP
+
         new_edges = {}
         ntypes = set()
         etypes = [ # src->tgt
@@ -1051,13 +1382,81 @@ def load_dataset(args):
             ntypes.add(stype)
             ntypes.add(dtype)
 
-        g = dgl.heterograph(new_edges)
+        # dgl.heterograph infers node counts from the max id in the edge lists;
+        # with the train-only link-prediction split some nodes have no edge left,
+        # so pass explicit counts to keep all nodes (and their features) present.
+        num_nodes_dict = {'P': dl.nodes['count'][0], 'A': dl.nodes['count'][1], 'C': dl.nodes['count'][2]}
+        if args.ACM_keep_F:
+            num_nodes_dict['K'] = dl.nodes['count'][3]
+        g = dgl.heterograph(new_edges, num_nodes_dict=num_nodes_dict)
 
         g.nodes['P'].data['P'] = P # [3025, 1902]
         g.nodes['A'].data['A'] = A # [5959, 1902]
         g.nodes['C'].data['C'] = C # [56, 1902]
         if args.ACM_keep_F:
             g.nodes['K'].data['K'] = K # [1902, 1902]
+    elif args.dataset == 'AMAZON':
+        # U --- P* --- C     (P-P also-bought, C-C category hierarchy)
+        # product : title-BoW + group one-hot
+        # category: name-BoW
+        # user    : hashing-trick sparse binary code
+        P, C, U = features_list
+        PP, PP_r, CC, CC_r, PC, CP, UP, PU = adjs
+
+        # merge both directions of each same-type relation into ONE symmetric
+        # adjacency (as ACM does for PP): hg_propagate_feat_dgl names propagated
+        # tensors f'{dtype}{src_key}', so two parallel same-type etypes would
+        # write the same key and the second update_all would silently win.
+        row0, col0, _ = PP.coo()
+        row1, col1, _ = PP_r.coo()
+        PP = SparseTensor(row=torch.cat((row0, row1)), col=torch.cat((col0, col1)), sparse_sizes=PP.sparse_sizes())
+        PP = PP.coalesce()
+        PP = PP.set_diag()
+
+        row0, col0, _ = CC.coo()
+        row1, col1, _ = CC_r.coo()
+        CC = SparseTensor(row=torch.cat((row0, row1)), col=torch.cat((col0, col1)), sparse_sizes=CC.sparse_sizes())
+        CC = CC.coalesce()
+        CC = CC.set_diag()
+
+        if link_split is not None:
+            # swap BOTH directions of the target relation for the train-only
+            # adjacency, or val/test edges leak back in via the reverse relation
+            UP = csr_to_sparse_tensor(link_split['train_adj_src2dst'], transpose=False)
+            PU = csr_to_sparse_tensor(link_split['train_adj_src2dst'], transpose=True)
+
+        adjs = [PP, CC, PC, CP, UP, PU]
+
+        new_edges = {}
+        ntypes = set()
+        etypes = [ # src->tgt
+            ('P', 'P-P', 'P'),
+            ('C', 'C-C', 'C'),
+            ('C', 'C-P', 'P'),
+            ('P', 'P-C', 'C'),
+            ('P', 'P-U', 'U'),
+            ('U', 'U-P', 'P'),
+        ]
+
+        if edge_mask_ratio != 0:
+            edge_mask(etypes, adjs, edge_mask_ratio)
+        for etype, adj in zip(etypes, adjs):
+            stype, rtype, dtype = etype
+            dst, src, _ = adj.coo()
+            src = src.numpy()
+            dst = dst.numpy()
+            new_edges[(stype, rtype, dtype)] = (src, dst)
+            ntypes.add(stype)
+            ntypes.add(dtype)
+
+        # explicit counts: the train-only link-prediction split can leave nodes
+        # edgeless, which would shrink dgl's inferred per-type node counts
+        num_nodes_dict = {'P': dl.nodes['count'][0], 'C': dl.nodes['count'][1], 'U': dl.nodes['count'][2]}
+        g = dgl.heterograph(new_edges, num_nodes_dict=num_nodes_dict)
+
+        g.nodes['P'].data['P'] = P
+        g.nodes['C'].data['C'] = C
+        g.nodes['U'].data['U'] = U
     elif args.dataset == 'Freebase':
         # 0*: 40402  2/4/7 <-- 0 <-- 0/1/3/5/6
         #  1: 19427  all <-- 1
@@ -1089,6 +1488,8 @@ def load_dataset(args):
         adjs = {'AP': AP, 'PA': PA, 'PT': PT, 'PV': PV, 'TP': TP, 'VP': VP}
     elif args.dataset == 'ACM':
         adjs = {'PP': PP, 'PA': PA, 'AP': AP, 'PC': PC, 'CP': CP}
+    elif args.dataset == 'AMAZON':
+        adjs = {'PP': PP, 'CC': CC, 'PC': PC, 'CP': CP, 'UP': UP, 'PU': PU}
     elif args.dataset == 'IMDB':
         adjs = {'MD': MD, 'DM': DM, 'MA': MA, 'AM': AM, 'MK': MK, 'KM': KM}
     elif args.dataset == 'Freebase':
@@ -1103,7 +1504,7 @@ def load_dataset(args):
     else:
         assert 0
 
-    return g, adjs, init_labels, num_classes, dl, train_nid, val_nid, test_nid, test_nid_full
+    return g, adjs, init_labels, num_classes, dl, train_nid, val_nid, test_nid, test_nid_full, link_split
 
 
 class EarlyStopping:

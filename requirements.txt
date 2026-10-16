@@ -1,16 +1,31 @@
-﻿# RTX 4070 Super (Ada Lovelace, sm_89) requires CUDA >= 11.8 -- the previous
-# torch==1.13.1+cu117 pin predates official Ada support. Install with:
+# Environment for hgb/ (link prediction on AMAZON and the HGB node-classification scripts)
+#
+# Python: 3.9 (the README's 3.9.18; the prebuilt sparse_tools extension in
+#   sparse_tools/sparse_tools/*.pyd links python39.dll + torch 2.x, so 3.9 lets you
+#   skip the C++ build). 3.10 / 3.11 also have wheels for every pin below, but then
+#   sparse_tools must be rebuilt (`cd sparse_tools && python setup.py develop`, needs
+#   MSVC Build Tools) -- only the node-classification / ogbn paths use it.
+#
+# GPU: RTX 4070 Super (Ada, sm_89) needs CUDA >= 11.8. Install order on Windows:
 #   pip install torch==2.1.2 --index-url https://download.pytorch.org/whl/cu121
-#   pip install torch_sparse -f https://data.pyg.org/whl/torch-2.1.2+cu121.html
-#   pip install dgl -f https://data.dgl.ai/wheels/cu121/repo.html
-# then: pip install -r requirements.txt (the rest are plain PyPI packages)
-dgl==2.1.0
-joblib==1.3.2
+#   pip install torch_sparse==0.6.18 -f https://data.pyg.org/whl/torch-2.1.2+cu121.html
+#   pip install -r requirements.txt
+#
+# dgl: the previous pin dgl==2.1.0 has NO Windows wheel (PyPI and data.dgl.ai are
+#   Linux/macOS only). 2.2.1 is the only 2.x release with win_amd64 wheels (cp38-cp312)
+#   and its release notes list PyTorch 2.1.0/1/2 as supported. The plain PyPI (CPU)
+#   build is enough here: dgl is used only for the one-time mean propagation, which
+#   runs on the CPU graph (utils.load_dataset / hg_propagate_feat_dgl). dgl 2.2 imports
+#   torchdata DataPipes, which torchdata >= 0.8 removed -> pin torchdata 0.7.1
+#   (it only requires torch>=2).
+dgl==2.2.1
+torchdata==0.7.1
 numpy==1.26.4
-ogb==1.3.6
-scikit_learn==1.3.2
 scipy==1.12.0
+scikit_learn==1.3.2
 torch==2.1.2
 torch_sparse==0.6.18
 tqdm==4.66.1
-util==0.0.1
+# ogbn/ only (not needed for hgb/): ogb==1.3.6, joblib==1.3.2. The former
+# `util==0.0.1` pin was wrong -- ogbn/main_path_nested.py imports a local `util`
+# package that is not in this repo, not the PyPI project of that name.

@@ -84,6 +84,14 @@ class LMSPS_Se(nn.Module):
         self.alpha = torch.ones(self.num_paths).to(device)
         self.alpha.requires_grad_(True)
 
+        # eval_gumbel=True (default, upstream behaviour): Gumbel noise is drawn
+        # on EVERY forward, also under model.eval(), so each node batch of an
+        # evaluation pass gets a different path weighting and the same path set
+        # scores differently on every repeat of the sampling evaluation.
+        # eval_gumbel=False: under model.eval() use the noise-free path strength
+        # softmax(alpha / tau) -- one fixed weighting per evaluation pass.
+        self.eval_gumbel = True
+
         if self.residual:
             self.res_fc = nn.Linear(hidden, hidden)
 
@@ -107,9 +115,14 @@ class LMSPS_Se(nn.Module):
         return alphas
 
 
+    def epoch_pool(self, eps):
+        """Current dynamic search space (paper Eq. 3): the top
+        int(num_res * eps) + num_final paths by alpha; eps=0 gives the final pool."""
+        return torch.argsort(self.alpha, dim=-1, descending=True)[:int(self.num_res * eps) + self.num_final]
+
     def epoch_sample(self, eps):
 
-        indices = torch.argsort(self.alpha, dim=-1, descending=True)[:int(self.num_res * eps) + self.num_final]
+        indices = self.epoch_pool(eps)
 
         sampled = random.sample(list(indices.cpu().numpy()), self.num_sampled)
         sampled = sorted(sampled)
@@ -159,9 +172,14 @@ class LMSPS_Se(nn.Module):
         x = [feats_dict[k] for k in meta_path_sampled] + [label_feats_dict[k] for k in label_meta_path_sampled]
         x = torch.stack(x, dim=1) # [B, C, D]
 
-        ws = [self.alpha[idx] for idx in epoch_sampled]
+        ws = torch.stack([self.alpha[idx] for idx in epoch_sampled])
 
-        ws = get_gumbel_prob(torch.stack(ws))
+        if self.training or self.eval_gumbel:
+            ws = get_gumbel_prob(ws)
+        else:
+            # noise-free path strength (Eq. 2 without u_k), renormalised over
+            # the sampled set like q'_k in Eq. 4; identical for every batch
+            ws = nn.functional.softmax(ws / self.tau, dim=-1)
         x = torch.einsum('bcd,c->bd', x, ws)
 
         if self.residual:

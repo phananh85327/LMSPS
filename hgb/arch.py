@@ -11,10 +11,16 @@ archs = {
         ['PPP', 'PAPP', 'PCPA', 'PCPP', 'PPPC', 'PPPP', 'PAPAP', 'PAPPP', 'PCPAP', 'PCPPA', 'PPAPA', 'PPAPC', 'PPAPP',
          'PAPAPA', 'PAPCPA', 'PAPPAP', 'PAPPCP', 'PAPPPP', 'PCPAPP', 'PCPCPP', 'PCPPAP', 'PCPPPP', 'PPAPAP', 'PPAPCP',
          'PPAPPA', 'PPAPPP', 'PPCPAP', 'PPPAPA', 'PPPCPA', 'PPPPPP'], []],
+    # Discovered sets. Record provenance so retrain/downstream can use the SAME
+    # --split-seed as the search (the final set is chosen by validation BPR on
+    # that split's val edges). "?" = not recorded at search time -- fill in.
+    # provenance: split-seed ?, stage ?, ns 5, num_final ?, dedupe-reversed ?
     "amazon_lp_han": [
         ['PCPPUP', 'PPPPUP', 'PPUPUP', 'PUPCCP', 'PUPCPP'], []],
+    # provenance: split-seed ?, stage ?, ns 5, num_final ?, dedupe-reversed ?
     "amazon_lp_han2": [
         ['PCPPUP', 'PPPPUP', 'PPUPPP', 'PPUPUP', 'PUPPCP'], []],
+    # provenance: split-seed ?, stage ?, ns 5, num_final ?, dedupe-reversed ?
     "amazon_lp_han3": [
         ['PUPP', 'PCPCP', 'PPCCCP', 'PPCPUP', 'PPUPUP'], []],
     # hand-engineered baseline (what an expert would define with NO discovery):

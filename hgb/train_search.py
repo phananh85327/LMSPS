@@ -1,3 +1,5 @@
+import os
+import json
 import math
 import time
 import uuid
@@ -8,6 +10,7 @@ from tqdm import tqdm
 
 import torch
 import torch.nn.functional as F
+import dgl
 from torch_sparse import SparseTensor
 from torch_sparse import remove_diag, set_diag
 
@@ -90,8 +93,14 @@ def main_link_prediction(args, g, dl, link_split):
             src_attr = torch.FloatTensor(src_raw_attr)
 
     # =======
-    # search-internal train/val split of the train_edges (bi-level DARTS optimization);
-    # link_split's real val_edges/test_edges never touch the architecture search
+    # search-internal train/val split of the train_edges for the bi-level (DARTS)
+    # update: weights step on one half, alpha step on the other. NOTE: the paper
+    # (Eq. 5 / App. A.3) updates alpha on the real validation set; we keep the
+    # real val_edges out of the alpha updates and use them ONLY in project_op_lp
+    # below, which scores the `--repeat` sampled path sets by validation BPR to
+    # pick the final arch (paper Eq. 6). test_edges never touch the search.
+    # Consequence: the retrain MUST use the same --split-seed as the search, or
+    # the val edges that chose the arch may be test edges of the retrain split.
     # =======
     rng = np.random.default_rng(args.seed)
     perm = rng.permutation(link_split['train_edges'].shape[0])
@@ -148,7 +157,10 @@ def main_link_prediction(args, g, dl, link_split):
     optimizer_a = torch.optim.Adam(model.alphas(), lr=args.alr)
 
     train_times = []
-    for epoch in tqdm(range(args.stage)):
+    # disable=None: no progress bar when stdout is redirected to a log file, so
+    # the per-epoch "sampled: [...]" print lands on its own line (with the bar,
+    # it is glued to tqdm's carriage-return line and log parsers miss it)
+    for epoch in tqdm(range(args.stage), disable=None):
         gc.collect()
         torch.cuda.synchronize()
 
@@ -174,14 +186,70 @@ def main_link_prediction(args, g, dl, link_split):
     with torch.no_grad():
         tower_src_emb = tower(src_attr.to(device))  # stays on GPU; project_op_lp scores there
 
-    geno_out = project_op_lp(list(feats.keys()), model, eval_loader, device,
-                              tower_src_emb, torch.LongTensor(link_split['val_edges']),
-                              torch.LongTensor(link_split['val_negs']), args.repeat)
+    # final architecture parameters: the independent ranking the pool is built from
+    keys = list(feats.keys())
+    with torch.no_grad():
+        alpha = model.alpha.detach().float().cpu()
+        strength = torch.softmax(alpha / model.tau, dim=-1)
+        final_pool = [int(i) for i in model.epoch_pool(0).cpu().numpy()]
+    order = torch.argsort(alpha, descending=True).tolist()
+    print(f'final alpha ranking (tau={model.tau:.3f}; * = in final pool of {len(final_pool)}):')
+    for rank, i in enumerate(order):
+        print(f'  {rank + 1:>3} {"*" if i in final_pool else " "} {keys[i]:<10} alpha {alpha[i].item():+.6f}  strength {strength[i].item():.5f}')
+
+    model.eval_gumbel = not args.eval_no_gumbel
+    geno_out, eval_table = project_op_lp(keys, model, eval_loader, device,
+                                         tower_src_emb, torch.LongTensor(link_split['val_edges']),
+                                         torch.LongTensor(link_split['val_negs']), args.repeat,
+                                         exhaustive_cap=args.eval_exhaustive_cap)
     print('average train times', sum(train_times) / len(train_times))
     print("paths {}\n".format(geno_out))
 
+    if args.search_json:
+        # provenance record: everything needed to reproduce / audit this search
+        # result (split seed, flags, candidates, alpha, pool, every scored set)
+        save_path = args.search_json
+        if save_path == 'auto':
+            os.makedirs(f'./output/{args.dataset}', exist_ok=True)
+            save_path = f'./output/{args.dataset}/search_{datetime.datetime.now():%Y%m%d_%H%M%S}_seed{args.seed}.json'
+        record = {
+            'dataset': args.dataset, 'task': args.task, 'target_relation': args.target_relation,
+            'split_seed': args.split_seed, 'seed': args.seed, 'args': vars(args),
+            'candidates': keys,
+            'alpha': {keys[i]: alpha[i].item() for i in range(len(keys))},
+            'final_tau': float(model.tau),
+            'final_pool': [keys[i] for i in final_pool],
+            'eval_mode': ('exhaustive' if args.eval_exhaustive_cap and
+                          math.comb(len(final_pool), args.ns) <= args.eval_exhaustive_cap else 'sampled'),
+            'eval_gumbel': model.eval_gumbel,
+            'eval_table': [{'paths': [keys[i] for i in idx], 'val_bpr': loss} for idx, loss in eval_table],
+            'paths': geno_out[0], 'label_paths': geno_out[1],
+            'avg_epoch_time_s': sum(train_times) / len(train_times),
+        }
+        with open(save_path, 'w', encoding='utf-8') as f:
+            json.dump(record, f, indent=1)
+        print(f'search record saved to {save_path}')
+
 
 def main(args):
+    if args.deterministic:
+        # Same-seed searches in hgb/logs were bit-identical for 33-60 epochs and
+        # then drifted by 1e-4 in a loss value (cuBLAS / reduction-order
+        # nondeterminism), after which argsort(alpha) + random.sample amplify the
+        # drift into different path sets. These settings remove the drift at some
+        # speed cost. The cuBLAS workspace variable must be set before the first
+        # CUDA call. warn_only=True: an op without a deterministic implementation
+        # is reported in the log (UserWarning) instead of aborting the run.
+        os.environ.setdefault('CUBLAS_WORKSPACE_CONFIG', ':4096:8')
+        try:
+            torch.use_deterministic_algorithms(True, warn_only=True)
+        except TypeError:  # torch < 1.11 has no warn_only; then an offending op raises instead
+            torch.use_deterministic_algorithms(True)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        dgl.seed(args.seed)
+        print(f'deterministic mode: CUBLAS_WORKSPACE_CONFIG={os.environ["CUBLAS_WORKSPACE_CONFIG"]}, '
+              f'torch.use_deterministic_algorithms(True, warn_only=True)')
     if args.seed > 0:
         set_random_seed(args.seed)
 
@@ -716,6 +784,23 @@ def parse_args(args=None):
                         help="store propagated features as fp16 on CPU (halves feats RAM; upcast to fp32 on GPU at gather time)")
     parser.add_argument("--user-tower", type=str, default="embedding", choices=["embedding", "feats"],
                         help="link-prediction user side: 'embedding' = free per-user trained vectors (same per-user capacity as metapath2vec/GAT -- use for comparisons); 'feats' = linear projection of raw user attributes (inductive; original behavior)")
+    ## search reproducibility (all opt-in; defaults reproduce the upstream behaviour)
+    parser.add_argument("--eval-no-gumbel", action="store_true",
+                        help="sampling evaluation scores each path set with the noise-free path strength "
+                             "softmax(alpha/tau) instead of a fresh Gumbel draw per node batch, so a set's "
+                             "val loss no longer depends on the draw (same-set re-scores varied by up to "
+                             "0.02 in hgb/logs while set-to-set gaps were 0.001-0.005)")
+    parser.add_argument("--eval-exhaustive-cap", type=int, default=0,
+                        help="if > 0 and C(num_final, ns) <= cap, score EVERY subset of the final pool once "
+                             "instead of --repeat uniform draws (C(10,4)=C(10,6)=210; 200 draws reach ~125 "
+                             "distinct sets). 0 = off")
+    parser.add_argument("--deterministic", action="store_true",
+                        help="CUBLAS_WORKSPACE_CONFIG=:4096:8 + torch.use_deterministic_algorithms(True, "
+                             "warn_only=True) + cudnn.deterministic + dgl.seed, so same-seed searches match")
+    parser.add_argument("--search-json", type=str, default="auto",
+                        help="where to save the search provenance record (args, candidates, alpha, pool, "
+                             "every scored set, chosen paths); 'auto' = output/<dataset>/search_<time>_seed<s>.json, "
+                             "'' = do not save")
     return parser.parse_args(args)
 
 if __name__ == '__main__':

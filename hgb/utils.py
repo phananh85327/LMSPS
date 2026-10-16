@@ -1,7 +1,9 @@
 import os
 import sys
 import gc
+import math
 import random
+import itertools
 
 import dgl
 import dgl.function as fn
@@ -279,24 +281,52 @@ def infer_full_embeddings_final(model, eval_loader, device, keep_on_device=False
     return torch.cat(embs, dim=0)
 
 
-def project_op_lp(keys, model, eval_loader, device, tower_src_emb, val_edges, val_negs, repeat):
-    """Link-prediction counterpart of project_op: try `repeat` sampled
-    architectures, keep the one minimizing validation BPR loss."""
+def project_op_lp(keys, model, eval_loader, device, tower_src_emb, val_edges, val_negs, repeat,
+                  exhaustive_cap=0):
+    """Link-prediction counterpart of project_op: score candidate path sets by
+    validation BPR loss and keep the argmin (paper Eq. 6 / Algorithm 1 l.17-21).
+
+    Default: `repeat` uniform draws of ns paths from the final top-num_final pool
+    (upstream behaviour; with C(10,4)=210 subsets, 200 draws hit ~125 distinct
+    sets and re-score the rest). If exhaustive_cap > 0 and C(pool, ns) <= cap,
+    every subset is scored exactly once instead. Combine with
+    model.eval_gumbel=False so a set's score does not depend on the Gumbel draw.
+
+    Returns ([path, label_path], table) where table is a list of
+    (sorted path-index list, val bpr loss) for every evaluation performed."""
     # one-time device residency: every repeat scores on the GPU, so keep the
     # user embeddings and eval edges there instead of re-transferring per repeat
     tower_src_emb = tower_src_emb.to(device)
     val_edges = val_edges.to(device)
     val_negs = val_negs.to(device)
+
+    pool = sorted(int(i) for i in model.epoch_pool(0).cpu().numpy())
+    n_sets = math.comb(len(pool), model.num_sampled)
+    if exhaustive_cap and n_sets <= exhaustive_cap:
+        candidates = [list(c) for c in itertools.combinations(pool, model.num_sampled)]
+        print(f'sampling evaluation: exhaustive over all {n_sets} subsets of the final pool {pool}')
+    else:
+        candidates = None
+        print(f'sampling evaluation: {repeat} uniform draws from the final pool {pool} '
+              f'({n_sets} possible subsets)')
+
     compare = lambda x, y: x < y
     crit_extrema = None
     best_index = 0
-    for opid in range(repeat):
-        index_sampled = model.epoch_sample(0)
+    table = []
+    n_evals = len(candidates) if candidates is not None else repeat
+    for opid in range(n_evals):
+        if candidates is not None:
+            index_sampled = candidates[opid]
+            print(f"sampled: {index_sampled}")
+        else:
+            index_sampled = model.epoch_sample(0)
         meta_path_sampled = [model.all_meta_path[i] for i in range(model.num_feats) if i in index_sampled]
         label_meta_path_sampled = [model.all_meta_path[i] for i in range(model.num_feats, model.num_paths) if i in index_sampled]
         crit = infer_eval_lp(model, eval_loader, device, index_sampled, meta_path_sampled, label_meta_path_sampled,
                               tower_src_emb, val_edges, val_negs)
         print("val bpr loss {}\n".format(crit))
+        table.append(([int(i) for i in index_sampled], crit))
         if crit_extrema is None or compare(crit, crit_extrema):
             crit_extrema = crit
             best_index = index_sampled
@@ -305,7 +335,7 @@ def project_op_lp(keys, model, eval_loader, device, tower_src_emb, val_edges, va
     for i, index in enumerate(best_index):
         if index < len(keys):
             path.append(keys[index])
-    return [path, label_path]
+    return [path, label_path], table
 
 
 def set_random_seed(seed=0):
@@ -362,12 +392,12 @@ def hg_propagate_feat_dgl(g, tgt_type, num_hops, max_length, echo=False):
             if echo and len(removes): print('remove', removes)
         gc.collect()
 
-        if echo: print(f'-- hop={hop} ---')
-        for ntype in g.ntypes:
-            for k, v in g.nodes[ntype].data.items():
-                print(f'{ntype} {k} {v.shape}', v[:,-1].max(), v[:,-1].mean())
-
-        if echo: print(f'------\n')
+        if echo:
+            print(f'-- hop={hop} ---')
+            for ntype in g.ntypes:
+                for k, v in g.nodes[ntype].data.items():
+                    print(f'{ntype} {k} {v.shape}', v[:,-1].max(), v[:,-1].mean())
+            print(f'------\n')
 
     return g
 

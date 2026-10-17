@@ -44,10 +44,18 @@ Data: C# preprocessing (Preprocessor -> AmazonGraphFilter) -> `dat_generator.py
 
 ### Search stage (meta-path discovery)
 
+Current protocol (2026-10-17, split-seed 1, stage 150, reproducibility flags on):
+
 ```bash
 python train_search.py --dataset AMAZON --task link_prediction --target-relation "U,P" \
-    --num-hops 5 --ns 5 --num_final 20 --repeat 60 --split-seed 0 --tgt-ended-paths --half-feats --stage 30
+    --num-hops 5 --ns 5 --num_final 10 --split-seed 1 --tgt-ended-paths --half-feats --stage 150 \
+    --deterministic --eval-no-gumbel --eval-exhaustive-cap 1000 --seeds 1
 ```
+
+The teacher's stress test (30 runs at `--ns 4` + 30 at `--ns 6`, seeds 1..30) is
+scripted in `run_fleet_v2.bat` (`pilot` first -- two same-seed runs that must be
+identical -- then `ns4`, `ns6`, `analyze`). Logs and JSON records go to
+`logs/Fleet v2/`.
 
 Notes:
 - `--stage` IS the search budget -- there is deliberately NO early stopping here.
@@ -56,7 +64,9 @@ Notes:
   the last epoch) and the Gumbel temperature (`tau_max -> tau_min`). Stopping
   early leaves the search unfinished; the discovered arch comes from the final
   alphas + `--repeat` re-evaluations after the last epoch, not from a best
-  checkpoint.
+  checkpoint. Pick `--stage` as a budget: in the first fleet the validation BPR was
+  still falling at epoch 149 (means 0.130 / 0.125 for ns 4 / 6), so 150 is a floor;
+  the paper uses 200 (convergence between 100 and 180 in its Table 11).
 - `--num_final` must be smaller than the candidate count (55 target-ended paths
   at 5 hops) or shrinking is inert.
 - **Reproducible search (recommended, all opt-in).** The 60 same-seed runs in
@@ -65,22 +75,20 @@ Notes:
   sets -- although their final top-10 pools agreed on >= 8 of 10 paths. The
   spread came from the LAST step: every set was scored by ONE Gumbel draw
   (same-set re-scores varied by up to 0.02, set-to-set gaps were 0.001-0.005),
-  and 200 uniform draws over 210 subsets re-scored duplicates. Use
-  ```bash
-  python train_search.py --dataset AMAZON --task link_prediction --target-relation "U,P" \
-      --num-hops 5 --ns 5 --num_final 10 --tgt-ended-paths --half-feats --stage 150 \
-      --split-seed 0 --seeds 1 --deterministic --eval-no-gumbel --eval-exhaustive-cap 1000
-  ```
-  `--deterministic` = cuBLAS workspace + `torch.use_deterministic_algorithms`;
-  `--eval-no-gumbel` scores each set with the noise-free path strength
-  softmax(alpha/tau) (one weighting for all node batches); `--eval-exhaustive-cap`
-  scores every subset of the final pool once when C(num_final, ns) is small
-  (C(10,5) = 252 ~ the cost of `--repeat 200`). `--num_final 10` is the paper's
-  V = 2M for M = 5. With `--num_final 20 --repeat 60`, 60 draws cover 0.4 % of
-  the 15,504 possible 5-sets -- the selection is then essentially random.
-  Every search now writes `output/AMAZON/search_<time>_seed<s>.json` (args,
-  candidates, alpha ranking, final pool, every scored set, chosen paths);
-  `analyze_search_fleet.py` accepts these JSON files as well as console logs.
+  and 200 uniform draws over 210 subsets re-scored duplicates.
+  `--deterministic` = cuBLAS workspace + `torch.use_deterministic_algorithms`
+  (same seed -> same run; vary `--seeds` for the stability test, same-seed runs
+  are copies); `--eval-no-gumbel` scores each set with the noise-free path
+  strength softmax(alpha/tau) (one weighting for all node batches);
+  `--eval-exhaustive-cap` scores every subset of the final pool once when
+  C(num_final, ns) is small (C(10,4) = C(10,6) = 210, C(10,5) = 252 ~ the cost of
+  `--repeat 200`). `--num_final 10` is the paper's V = 2M for M = 4-6. With
+  `--num_final 20 --repeat 60`, 60 draws cover 0.4 % of the 15,504 possible
+  5-sets -- the selection is then essentially random.
+  Every search writes a JSON record via `--search-json` (default
+  `output/AMAZON/search_<time>_seed<s>.json`: args, candidates, alpha ranking,
+  final pool, every scored set, chosen paths); `analyze_search_fleet.py` accepts
+  these JSON files as well as console logs.
 - FREEZE THE ARCH: paste the printed path list into `arch.py` once and never
   casually re-run the search -- GPU nondeterminism means even the same seed can
   discover a different set, which invalidates every downstream result built on
@@ -91,11 +99,13 @@ Notes:
 
 ```bash
 python main_path.py --dataset AMAZON --task link_prediction --target-relation "U,P" \
-    --num-hops 5 --arch amazon_lp_han --split-seed 0 --half-feats --patience 20 --seeds 1 2 3
+    --num-hops 5 --arch amazon_lp_han --split-seed 1 --half-feats --patience 20 --seeds 1 2 3
 ```
 
 - `--split-seed` fixes the edge split + eval negatives (same exam for every
-  model); `--seeds` are RUN seeds -- the script loops internally and prints one
+  model) and MUST equal the split seed of the search that produced the arch
+  (the arch was chosen by validation BPR on that split; current protocol: 1);
+  `--seeds` are RUN seeds -- the script loops internally and prints one
   metrics dict per seed; report mean +/- std.
 - Early stopping: best-val checkpoint always kept; only improvements
   > `--min-delta` (default 5e-4) reset patience.

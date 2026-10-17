@@ -23,6 +23,12 @@ All experiments are conducted on Tesla V100 GPU (16GB).
 
 Please install the requirements using the following command. (The python version is 3.9.18)
 
+> Windows / RTX 40-series note (thesis fork): see the comments at the top of
+> `requirements.txt` -- torch 2.1.2+cu121, torch_sparse 0.6.18 from the PyG index,
+> dgl 2.2.1 (the only 2.x release with Windows wheels) + torchdata 0.7.1. Keep
+> Python 3.9 to reuse the prebuilt `sparse_tools` extension; link prediction in
+> `hgb/` does not need `sparse_tools` at all.
+
 ```setup
 pip install -r requirements.txt
 git clone https://github.com/Yangxc13/sparse_tools.git --depth=1

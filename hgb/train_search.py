@@ -16,7 +16,14 @@ from torch_sparse import remove_diag, set_diag
 
 from model_search import *
 from utils import *
-from sparse_tools import SparseAdjList
+try:
+    from sparse_tools import SparseAdjList
+except ImportError as _e:  # compiled extension (python39 build in ../sparse_tools); unused by link prediction
+    _sparse_tools_error = _e
+
+    def SparseAdjList(*args, **kwargs):
+        raise ImportError('sparse_tools is required for the node-classification / Freebase paths: '
+                          f'build it with `cd ../sparse_tools && python setup.py develop` ({_sparse_tools_error})')
 
 
 

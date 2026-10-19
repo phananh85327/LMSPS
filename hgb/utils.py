@@ -301,13 +301,14 @@ def project_op_lp(keys, model, eval_loader, device, tower_src_emb, val_edges, va
     val_negs = val_negs.to(device)
 
     pool = sorted(int(i) for i in model.epoch_pool(0).cpu().numpy())
-    n_sets = math.comb(len(pool), model.num_sampled)
+    k = model.num_select  # size of the final set (== num_sampled unless --ns-search widened the per-step sampling)
+    n_sets = math.comb(len(pool), k)
     if exhaustive_cap and n_sets <= exhaustive_cap:
-        candidates = [list(c) for c in itertools.combinations(pool, model.num_sampled)]
-        print(f'sampling evaluation: exhaustive over all {n_sets} subsets of the final pool {pool}')
+        candidates = [list(c) for c in itertools.combinations(pool, k)]
+        print(f'sampling evaluation: exhaustive over all {n_sets} subsets of size {k} of the final pool {pool}')
     else:
         candidates = None
-        print(f'sampling evaluation: {repeat} uniform draws from the final pool {pool} '
+        print(f'sampling evaluation: {repeat} uniform draws of size {k} from the final pool {pool} '
               f'({n_sets} possible subsets)')
 
     compare = lambda x, y: x < y
@@ -320,7 +321,7 @@ def project_op_lp(keys, model, eval_loader, device, tower_src_emb, val_edges, va
             index_sampled = candidates[opid]
             print(f"sampled: {index_sampled}")
         else:
-            index_sampled = model.epoch_sample(0)
+            index_sampled = model.epoch_sample(0, k=k)
         meta_path_sampled = [model.all_meta_path[i] for i in range(model.num_feats) if i in index_sampled]
         label_meta_path_sampled = [model.all_meta_path[i] for i in range(model.num_feats, model.num_paths) if i in index_sampled]
         crit = infer_eval_lp(model, eval_loader, device, index_sampled, meta_path_sampled, label_meta_path_sampled,

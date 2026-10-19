@@ -44,18 +44,70 @@ Data: C# preprocessing (Preprocessor -> AmazonGraphFilter) -> `dat_generator.py
 
 ### Search stage (meta-path discovery)
 
-Current protocol (2026-10-17, split-seed 1, stage 150, reproducibility flags on):
+Final protocol (2026-10-18): split-seed 1, stage 150, 36 reverse-deduplicated
+candidates, 15 warm-up epochs, 4 paths per step, exhaustive noise-free selection,
+deterministic kernels. Thirty seeds per `--ns`, then a fleet-level 1-SE re-selection.
 
 ```bash
 python train_search.py --dataset AMAZON --task link_prediction --target-relation "U,P" \
-    --num-hops 5 --ns 5 --num_final 10 --split-seed 1 --tgt-ended-paths --half-feats --stage 150 \
-    --deterministic --eval-no-gumbel --eval-exhaustive-cap 1000 --seeds 1
+    --num-hops 5 --ns 4 --num_final 10 --split-seed 1 --tgt-ended-paths --dedupe-reversed \
+    --warmup-epochs 15 --half-feats --stage 150 --deterministic --eval-no-gumbel \
+    --eval-exhaustive-cap 1000 --seeds 1
+python reselect_fleet.py "logs/Fleet v2/final_ns4/*.json" --delta 0.010 --prefix amazon_lp_f4
 ```
 
-The teacher's stress test (30 runs at `--ns 4` + 30 at `--ns 6`, seeds 1..30) is
-scripted in `run_fleet_v2.bat` (`pilot` first -- two same-seed runs that must be
-identical -- then `ns4`, `ns6`, `analyze`). Logs and JSON records go to
-`logs/Fleet v2/`.
+`run_fleet_v2.bat final4 | final6 | reselect` runs the whole thing (30 seeds each,
+~1 h per run; logs and JSON records in `logs/Fleet v2/final_ns4|final_ns6`).
+The script activates `lmsps_env` itself; `execute.bat` is now only a wrapper for it.
+
+**Run flow (2026-10-19)**
+
+| step | command (from `hgb/`) | time | produces |
+|---|---|---|---|
+| 0 | `run_fleet_v2.bat pilot` | done 2026-10-17 | determinism PASS (two same-seed runs identical) |
+| 1 | `run_fleet_v2.bat final4` | 30 x ~1 h | `logs/Fleet v2/final_ns4/search_ns4_seed<s>.txt` + `.json` |
+| 2 | `run_fleet_v2.bat final6` | 30 x ~1 h | same for ns 6 |
+| 3 | `run_fleet_v2.bat reselect` | seconds | per ns: raw argmin table, 1-SE table (delta 0.010 and 0.005), cross-seed noise, path frequencies, consensus, `arch.py` entries (`amazon_lp_f4_consensus`, `_r1`, ...), `reselect_d010.json` |
+| 4 | paste into `arch.py` | - | consensus + every 1-SE set seen >= 2 times, with a provenance comment (split-seed 1, final schedule, delta) |
+| 5 | downstream, all with `--split-seed 1` | per arch | `main_path.py --arch <key>`; HAN repo `build_metapath_graphs.py` / `train_han.py` / metapath2vec per log #17 (consensus + >= 2x archs, 1 seed each; 3 seeds for the winner) |
+| 6 | report | - | raw distinct count, 1-SE distinct count + duplicate rate, delta sensitivity, path frequencies, schedule ablation (`ns4_old` 55 cand. / `ns_4` ns-search 8 / `final_ns4`) |
+
+Nothing from steps 1-2 is wasted if the rule changes: step 3 only reads the saved
+tables and can be re-run with any `--delta`.
+
+**Why the per-run argmin cannot be the unit of comparison.** Per run, the 210
+exhaustively scored 4-sets contain 12-78 sets within 0.010 val BPR of the best
+(4-33 within 0.005), and the seed alone moves any set's score by ~0.008 (median,
+measured by scoring one run's winner in another run's table). Inside that tie
+group a run has no seed-independent information: every self-contained rule we
+replayed on the 20 saved tables (argmin; plateau centre at delta 0.005-0.020;
+parsimony; loss + lambda * hops) leaves 7-10 distinct sets out of 10. Averaging
+over seeds is the only thing that works, and doing it inside a run (K
+sub-trainings per run) was simulated at <= 39 % agreement for K = 5, i.e. 5 h per
+run. So each run now prints and records its own **tie group** (`--report-delta`,
+default 0.010: every set within delta of its best) before any fleet step, and the
+fleet result is a count over those declared ties:
+
+- `reselect_fleet.py` first prints the **membership table**: in how many of the N
+  runs a given set belongs to the tie group. On the first 10 old-schedule runs,
+  `PPUPUP PUPCP PUPUP PUPUPP` and `PPUPUP PUPCCP PUPUP PUPUPP` are tied-best in
+  7/10 runs (each is also the raw argmin of one run), while the other eight raw
+  argmin sets are tied-best in at most 4/10. That is a count, not a re-pick.
+- It then prints the **1-SE table**: per run, among the sets within delta of its
+  best, the one whose paths were selected most often by the *other* runs
+  (leave-one-out, so no run votes for itself), ties by loss. Old-schedule runs:
+  10 distinct -> 3 (x7). This is Breiman's one-standard-error rule; the per-run
+  argmin is itself an arbitrary tie-break, this one is a declared tie-break.
+- delta is fixed in advance to the measured cross-seed noise (0.010) and the
+  0.005 line is reported as sensitivity. Choosing delta after seeing which value
+  maximises duplicates would be the thing to avoid.
+- Report both tables; HAN trains the consensus plus every 1-SE set seen >= 2 times.
+
+**Why `--ns-search` is not in the final protocol.** Sampling 8 paths per step while
+selecting 4 trains the shared weights on 8-path mixtures and evaluates 4-subsets
+off-distribution (softmax weights 1/8 -> 1/4, dot-product scale doubles): the
+cross-seed noise of a set's score rose from 0.008 to 0.018 and the 1-SE rule stopped
+working (9 distinct / 10). Warm-up alone gives eliminated paths ~24 looks instead of 8.
 
 Notes:
 - `--stage` IS the search budget -- there is deliberately NO early stopping here.
@@ -140,9 +192,29 @@ the results are reported as "LMSPS":
    edges, not on the real validation set (paper Eq. 5). The real validation
    edges are used only to pick the final set in `project_op_lp`.
 5. **Inherited from the authors' code** (not this fork): no 20-epoch lambda
-   warm-up, candidate pool ranked by raw alpha rather than Gumbel strength,
-   sampling evaluation draws uniformly from the top-V instead of
-   strength-weighted, single linear projection per path instead of a 2-layer MLP.
+   warm-up (now available as `--warmup-epochs`, off by default), candidate pool
+   ranked by raw alpha rather than Gumbel strength, sampling evaluation draws
+   uniformly from the top-V instead of strength-weighted, single linear
+   projection per path instead of a 2-layer MLP.
+6. **`--ns-search` (opt-in).** The paper samples the same M paths per step that
+   it selects at the end. With M = 4 of K = 55 every eliminated path got only
+   ~8 looks (2-4 for early cuts) in fleet v2, so `--ns-search S` samples S paths
+   per step while still selecting `--ns`. Using S != ns is a departure; say so.
+7. **`--dedupe-reversed` (recommended for AMAZON).** Reverse(X) has the transpose
+   of X's walk-count matrix, i.e. the same relation, and HAN symmetrises anyway.
+   Without the flag, 5 of the first 10 fleet-v2 runs spent 2 of their 4 slots on
+   PPUPUP + PUPUPP. The flag keeps one member per reverse pair (55 -> 36
+   candidates: 17 palindromes + 19 representatives). The paper has no such step
+   because its target-net concatenates all M paths and never reuses them as
+   graphs; state it as a search-space choice.
+
+**Search stability (fleet v2, seeds 21-30, ns 4, 2026-10-18).** Same seed ->
+identical run. Different seeds -> different 4-sets, but PPUPUP in 9/10,
+PUPUPP and PUPCCP 6/10, PUPUP 5/10 (consensus PPUPUP PUPUPP PUPCCP PUPUP),
+pairwise overlap 1.8/4. Causes: redundant candidates (2-13 sets tie within
+0.002 val BPR per run), few looks per path before elimination, one-shot weight
+sharing. Report path frequencies + consensus + downstream equivalence, not the
+exact set. Details: chat log #18, Addendum 4.
 
 **Split-seed rule:** search and retrain MUST use the same `--split-seed`. The
 final path set is chosen by validation BPR on the search split; retraining on a

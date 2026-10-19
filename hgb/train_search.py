@@ -139,6 +139,15 @@ def main_link_prediction(args, g, dl, link_split):
     if args.ns > len(feats):
         args.ns = len(feats)
     print(f"num sampled :{args.ns}")
+    # per-step sampling width during the search (paper: == ns). --ns-search widens
+    # it so every path gets more looks per epoch and alpha's softmax compares each
+    # path against more companions; the FINAL set still has --ns paths.
+    ns_search = args.ns_search if args.ns_search > 0 else args.ns
+    assert ns_search <= args.num_final, '--ns-search must not exceed --num_final (the final pool must hold a full sample)'
+    assert ns_search <= len(feats), '--ns-search exceeds the candidate count'
+    assert 0 <= args.warmup_epochs < args.stage, '--warmup-epochs must be in [0, stage)'
+    print(f'search schedule: {args.stage} epochs, warm-up {args.warmup_epochs} (pool fixed at {len(feats)}), '
+          f'then linear shrink to {args.num_final}; {ns_search} paths sampled per step, {args.ns} selected at the end')
 
     # =======
     # Construct network
@@ -148,7 +157,8 @@ def main_link_prediction(args, g, dl, link_split):
 
     model = LMSPS_Se(args.hidden, 1, feats.keys(), label_feats.keys(), tgt_type,
         args.dropout, args.input_drop, device, args.num_final, args.residual,
-        bns=args.bns, data_size=data_size, num_sampled=args.ns, task='link_prediction')
+        bns=args.bns, data_size=data_size, num_sampled=ns_search, task='link_prediction',
+        num_select=args.ns)
     model = model.to(device)
     if args.user_tower == 'embedding':
         tower = UserEmbeddingTower(link_split['num_src'], args.hidden).to(device)
@@ -171,7 +181,12 @@ def main_link_prediction(args, g, dl, link_split):
         gc.collect()
         torch.cuda.synchronize()
 
-        eps = 1 - epoch / (args.stage - 1)
+        # paper App. B.4: lambda = 1 during the warm-up epochs (no shrinking), then
+        # linear to 0; tau anneals over the full stage regardless
+        if epoch < args.warmup_epochs:
+            eps = 1.0
+        else:
+            eps = 1 - (epoch - args.warmup_epochs) / max(1, args.stage - 1 - args.warmup_epochs)
         epoch_sampled = model.epoch_sample(eps)
         meta_path_sampled = [model.all_meta_path[i] for i in range(model.num_feats) if i in epoch_sampled]
         label_meta_path_sampled = [model.all_meta_path[i] for i in range(model.num_feats, model.num_paths) if i in epoch_sampled]
@@ -212,6 +227,22 @@ def main_link_prediction(args, g, dl, link_split):
     print('average train times', sum(train_times) / len(train_times))
     print("paths {}\n".format(geno_out))
 
+    # The run's own statement of its tie group: every scored set whose val BPR is
+    # within --report-delta of the best. Within one run these sets are not
+    # distinguishable (the seed alone moves a set's score by ~0.008 on AMAZON), so
+    # the argmin above is one arbitrary member of this group. Printed here, before
+    # any fleet-level step, so a later selection among tied sets is a count over
+    # declared ties and not a post-hoc re-pick.
+    tie_sets = []
+    if args.report_delta > 0 and eval_table:
+        best_loss = min(loss for _, loss in eval_table)
+        tie_sets = sorted(((idx, loss - best_loss) for idx, loss in eval_table if loss - best_loss <= args.report_delta),
+                          key=lambda t: t[1])
+        print(f'tie group (within {args.report_delta:.4f} of the best val bpr {best_loss:.4f}): {len(tie_sets)} of {len(eval_table)} sets')
+        for idx, gap in tie_sets:
+            print(f'  +{gap:.4f}  {[keys[i] for i in idx]}')
+        print()
+
     if args.search_json:
         # provenance record: everything needed to reproduce / audit this search
         # result (split seed, flags, candidates, alpha, pool, every scored set)
@@ -226,11 +257,14 @@ def main_link_prediction(args, g, dl, link_split):
             'alpha': {keys[i]: alpha[i].item() for i in range(len(keys))},
             'final_tau': float(model.tau),
             'final_pool': [keys[i] for i in final_pool],
+            'ns_search': ns_search, 'ns_select': args.ns, 'warmup_epochs': args.warmup_epochs,
             'eval_mode': ('exhaustive' if args.eval_exhaustive_cap and
                           math.comb(len(final_pool), args.ns) <= args.eval_exhaustive_cap else 'sampled'),
             'eval_gumbel': model.eval_gumbel,
             'eval_table': [{'paths': [keys[i] for i in idx], 'val_bpr': loss} for idx, loss in eval_table],
             'paths': geno_out[0], 'label_paths': geno_out[1],
+            'tie_delta': args.report_delta,
+            'tie_sets': [{'paths': [keys[i] for i in idx], 'gap': gap} for idx, gap in tie_sets],
             'avg_epoch_time_s': sum(train_times) / len(train_times),
         }
         with open(save_path, 'w', encoding='utf-8') as f:
@@ -808,6 +842,20 @@ def parse_args(args=None):
                         help="where to save the search provenance record (args, candidates, alpha, pool, "
                              "every scored set, chosen paths); 'auto' = output/<dataset>/search_<time>_seed<s>.json, "
                              "'' = do not save")
+    ## search schedule (link prediction; opt-in, defaults = upstream schedule)
+    parser.add_argument("--warmup-epochs", type=int, default=0,
+                        help="epochs with the full candidate pool before progressive shrinking starts "
+                             "(paper App. B.4 uses 20 of 200). Without it, paths cut early in fleet v2 had "
+                             "only 2-4 looks; eliminated paths averaged 8")
+    parser.add_argument("--ns-search", type=int, default=0,
+                        help="paths sampled per training step (0 = --ns, the paper's choice). A wider "
+                             "sample gives every path more looks per epoch and compares it against more "
+                             "companions in alpha's softmax; the final set still has --ns paths. "
+                             "Must be <= --num_final. DEPARTURE from the paper when != --ns")
+    parser.add_argument("--report-delta", type=float, default=0.010,
+                        help="after the sampling evaluation, print and record every scored set whose val "
+                             "BPR is within this tolerance of the best (the run's own tie group). Use the "
+                             "measured cross-seed noise (~0.008-0.010 on AMAZON). 0 = off")
     return parser.parse_args(args)
 
 if __name__ == '__main__':

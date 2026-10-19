@@ -41,15 +41,17 @@ class UserEmbeddingTower(nn.Module):
 
 class LMSPS_Se(nn.Module):
     def __init__(self, hidden, nclass, feat_keys, label_feat_keys, tgt_key, dropout, 
-                 input_drop, device, num_final, residual=False, bns=False, data_size=None, num_sampled=1, task='classification'):
-        
+                 input_drop, device, num_final, residual=False, bns=False, data_size=None, num_sampled=1, task='classification',
+                 num_select=None):
+
         super(LMSPS_Se, self).__init__()
 
         self.feat_keys = feat_keys
         self.label_feat_keys = label_feat_keys
         self.num_feats = len(feat_keys)
         self.all_meta_path = list(self.feat_keys) + list(self.label_feat_keys)
-        self.num_sampled = num_sampled
+        self.num_sampled = num_sampled          # paths sampled per training step (paper: M)
+        self.num_select = num_select or num_sampled  # size of the set chosen at the end (paper: also M)
         self.num_channels = self.num_sampled
         self.num_paths = len(self.all_meta_path)
         self.num_final = num_final
@@ -120,11 +122,13 @@ class LMSPS_Se(nn.Module):
         int(num_res * eps) + num_final paths by alpha; eps=0 gives the final pool."""
         return torch.argsort(self.alpha, dim=-1, descending=True)[:int(self.num_res * eps) + self.num_final]
 
-    def epoch_sample(self, eps):
+    def epoch_sample(self, eps, k=None):
+        """Uniformly sample k paths (default: the per-step width num_sampled) from
+        the current pool (paper Eq. 4)."""
 
         indices = self.epoch_pool(eps)
 
-        sampled = random.sample(list(indices.cpu().numpy()), self.num_sampled)
+        sampled = random.sample(list(indices.cpu().numpy()), k or self.num_sampled)
         sampled = sorted(sampled)
         print(f"sampled: {sampled}")
         return sampled

@@ -158,15 +158,29 @@ def main(args):
     for p, c in freq.most_common():
         print(f'  {p:<8} {c:>3}/{len(runs)}')
     k = len(picks[0][0])
-    consensus = [p for p, _ in freq.most_common(k)]
-    print(f'\n== consensus (top {k} most frequent): {consensus}')
+    consensus = tuple(sorted(p for p, _ in freq.most_common(k)))
+    c_count = uniq.get(consensus, 0)
+    print(f'\n== path-frequency consensus (the {k} most frequent paths, assembled; NOT necessarily any run\'s pick): '
+          f'{" ".join(consensus)}  -- itself a 1-SE pick in {c_count}/{len(runs)} runs')
 
-    print('\n== arch.py entries')
-    def entry(key, paths):
-        return f'    "{key}": [\n    [{", ".join(repr(p) for p in paths)}], []],'
-    print(entry(f'{args.prefix}_consensus', consensus))
-    for i, (s, c) in enumerate(uniq.most_common(), 1):
-        print(entry(f'{args.prefix}_r{i}', list(s)) + f'  # 1-SE pick in {c}/{len(runs)} runs')
+    # HAN shortlist: the sets worth training downstream -- every 1-SE set picked by
+    # >= --min-count runs, plus the consensus if it is not already among them.
+    shortlist = [(s, c) for s, c in uniq.most_common() if c >= args.min_count]
+    if consensus not in dict(shortlist):
+        shortlist.append((consensus, c_count))
+    print(f'\n== HAN shortlist ({len(shortlist)} sets: 1-SE picks seen >= {args.min_count}x, plus the consensus)')
+    for s, c in shortlist:
+        tag = '  (consensus)' if s == consensus else ''
+        print(f'  x{c:<3} {" ".join(s)}{tag}')
+
+    print(f'\n== arch.py entries (prefix "{args.prefix}" is only the key name stem)')
+    def entry(key, paths, note):
+        return f'    # {note}\n    "{key}": [\n        [{", ".join(repr(p) for p in paths)}], []],'
+    prov = f'fleet v2 final schedule, split-seed 1, 1-SE delta {args.delta:.3f}'
+    for i, (s, c) in enumerate(shortlist, 1):
+        key = f'{args.prefix}_c' if s == consensus else f'{args.prefix}_s{i}'
+        what = 'path-frequency consensus' if s == consensus else '1-SE pick'
+        print(entry(key, list(s), f'{prov}; {what} in {c}/{len(runs)} runs'))
 
     if args.out:
         summary = {
@@ -177,7 +191,8 @@ def main(args):
                       'reselected': list(s), 'gap': l - r['best'], 'n_within_delta': k}
                      for r, (s, l, k) in zip(runs, picks)],
             'reselected_unique': [{'paths': list(s), 'count': c} for s, c in uniq.most_common()],
-            'consensus': consensus,
+            'consensus': list(consensus), 'consensus_count': c_count,
+            'shortlist': [{'paths': list(s), 'count': c, 'is_consensus': s == consensus} for s, c in shortlist],
         }
         with open(args.out, 'w', encoding='utf-8') as fh:
             json.dump(summary, fh, indent=1)
@@ -195,9 +210,13 @@ def parse_args():
     ap.add_argument('--mode', choices=['both', 'membership', '1se'], default='both',
                     help='membership = only the tie-group count table (no re-picking); 1se = also the per-run 1-SE picks')
     ap.add_argument('--top', type=int, default=8, help='rows to show in the membership table')
+    ap.add_argument('--min-count', type=int, default=2,
+                    help='HAN shortlist = 1-SE sets picked by at least this many runs (plus the consensus)')
     ap.add_argument('--canonical', action='store_true',
                     help='collapse reverse pairs (X / reversed X) when counting distinct sets')
-    ap.add_argument('--prefix', type=str, default='amazon_lp_fleet', help='key prefix for arch.py entries')
+    ap.add_argument('--prefix', type=str, default='amazon_lp_fleet',
+                    help='name stem for the generated arch.py keys (<prefix>_c = consensus, <prefix>_s1.. = shortlist); '
+                         'cosmetic only, no effect on the analysis')
     ap.add_argument('--out', type=str, default='', help='optional summary JSON path')
     return ap.parse_args()
 

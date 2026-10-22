@@ -103,6 +103,33 @@ fleet result is a count over those declared ties:
   maximises duplicates would be the thing to avoid.
 - Report both tables; HAN trains the consensus plus every 1-SE set seen >= 2 times.
 
+**Fleet v2 final results (2026-10-22; `logs/Fleet v2/final_ns4|final_ns6`, 30 seeds each,
+identical config, no warnings).**
+
+| | ns 4 | ns 6 |
+|---|---|---|
+| raw argmin: distinct sets | 29 / 30 | 30 / 30 |
+| 1-SE delta 0.010: distinct (duplicate rate) | 15 (50 %) | 19 (37 %) |
+| 1-SE delta 0.005 (sensitivity) | 19 (37 %) | 25 (17 %) |
+| most frequent 1-SE set | PPPUPP PPUPUP PUPPUP PUPUP x5 | PCPPUP PPPPUP PPPUPP PPUPUP PUPPUP PUPUP x5 |
+| core paths in the 1-SE sets | PPUPUP 30, PUPPUP 27, PUPUP 23 | PUPPUP 30, PUPUP 30, PPUPUP 29 |
+| tie-group size, median of 210 | 23.5 | 46 |
+| cross-seed noise (median) | 0.0094 | 0.0059 |
+
+Reading: the three "co-reviewed" relations {PPUPUP, PUPPUP, PUPUP} are the finding;
+every further slot is a filler whose fleet-mean marginal effect is ~0 or positive
+(PPPUPP +0.003, PPPPUP +0.005, PUP +0.013 = hurts). The duplicate rate is lower
+than the 10-run old-schedule replay suggested because tie groups are larger with 36
+candidates and the filler slot is split by pool availability (PCCPUP, the best
+filler by marginal -0.007, is in only 9/30 pools). A vote by fleet-mean marginal
+effect instead of argmin frequency was replayed and is worse (rewards rarely
+available C-paths), so the pre-registered rule stands. For ns 6 the assembled
+path-frequency consensus was itself picked by only 2 runs; the most frequent 1-SE
+set (x5) is the better single representative. HAN shortlist = `arch.py` keys
+`amazon_lp_f4_c, _s2.._s5` and `amazon_lp_f6_s1, _s2, _c` (8 stacks instead of 60),
+all with `--split-seed 1`. `reselect_fleet.py` prints this shortlist directly
+(`--min-count`, default 2); `--prefix` is only the key-name stem.
+
 **Why `--ns-search` is not in the final protocol.** Sampling 8 paths per step while
 selecting 4 trains the shared weights on 8-path mixtures and evaluates 4-subsets
 off-distribution (softmax weights 1/8 -> 1/4, dot-product scale doubles): the

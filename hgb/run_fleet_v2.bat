@@ -25,10 +25,14 @@ REM            prints delta 0.005 for the sensitivity line). Produces the per-ru
 REM            sets to report, the duplicate rate, the consensus and arch.py entries.
 REM            Replayed on the first 10 old-schedule runs: argmin 10 distinct ->
 REM            1-SE 3 distinct (x7 consensus).
-REM    Earlier groups (kept as the schedule ablation):
+REM    Earlier groups (kept as the schedule ablation; JSON records only, the txt
+REM    logs were not kept): logs\Fleet v2\ablation_old55 = 55 candidates, no
+REM    warm-up (10 runs + 1 same-seed duplicate); ablation_ns8 = dedupe + warm-up
+REM    15 + ns-search 8 (10 runs). logs\Fleet v1 = the very first fleets
+REM    (same seed in every run, 30 + 30 logs; GPU-nondeterminism study).
 REM    pilot   two same-seed runs; PASS 2026-10-17 (identical).
-REM    ns4/ns6 old schedule (55 candidates, no warm-up): 10 runs done (ns4_old).
-REM    pilotB  dedupe + warm-up 15 + ns-search 8: 10 runs done (ns_4).
+REM    ns4/ns6 old-schedule targets, superseded by final4/final6.
+REM    pilotB  the ns-search-8 pilot, superseded.
 REM    analyze dedupe + path frequencies + consensus over raw argmin sets.
 REM ==========================================================================
 setlocal

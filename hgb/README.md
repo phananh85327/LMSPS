@@ -70,7 +70,7 @@ The script activates `lmsps_env` itself; `execute.bat` is now only a wrapper for
 | 3 | `run_fleet_v2.bat reselect` | seconds | per ns: raw argmin table, 1-SE table (delta 0.010 and 0.005), cross-seed noise, path frequencies, consensus, `arch.py` entries (`amazon_lp_f4_consensus`, `_r1`, ...), `reselect_d010.json` |
 | 4 | paste into `arch.py` | - | consensus + every 1-SE set seen >= 2 times, with a provenance comment (split-seed 1, final schedule, delta) |
 | 5 | downstream, all with `--split-seed 1` | per arch | `main_path.py --arch <key>`; HAN repo `build_metapath_graphs.py` / `train_han.py` / metapath2vec per log #17 (consensus + >= 2x archs, 1 seed each; 3 seeds for the winner) |
-| 6 | report | - | raw distinct count, 1-SE distinct count + duplicate rate, delta sensitivity, path frequencies, schedule ablation (`ns4_old` 55 cand. / `ns_4` ns-search 8 / `final_ns4`) |
+| 6 | report | - | raw distinct count, 1-SE distinct count + duplicate rate, delta sensitivity, path frequencies, schedule ablation (`logs/Fleet v2/ablation_old55` 55 cand. no warm-up / `ablation_ns8` ns-search 8 / `final_ns4`; `logs/Fleet v1` = same-seed fleets) |
 
 Nothing from steps 1-2 is wasted if the rule changes: step 3 only reads the saved
 tables and can be re-run with any `--delta`.
@@ -126,9 +126,22 @@ effect instead of argmin frequency was replayed and is worse (rewards rarely
 available C-paths), so the pre-registered rule stands. For ns 6 the assembled
 path-frequency consensus was itself picked by only 2 runs; the most frequent 1-SE
 set (x5) is the better single representative. HAN shortlist = `arch.py` keys
-`amazon_lp_f4_c, _s2.._s5` and `amazon_lp_f6_s1, _s2, _c` (8 stacks instead of 60),
-all with `--split-seed 1`. `reselect_fleet.py` prints this shortlist directly
-(`--min-count`, default 2); `--prefix` is only the key-name stem.
+`amazon_lp_f4_c, _s2.._s6` and `amazon_lp_f6_s1, _s2, _s3, _c, _s5.._s7` (the full
+delta-0.010 shortlists, 13 sets; run in count order, the first three per ns cover
+the consensus and the strong fillers), all with `--split-seed 1`.
+`reselect_fleet.py` prints this shortlist directly (`--min-count`, default 2);
+`--prefix` is only the key-name stem.
+
+**Why delta 0.010 (not 0.005) is the final rule.** It was fixed on 2026-10-18,
+before the final fleets ran, from the measured cross-seed noise of the old group
+(0.008-0.009); the final ns-4 fleet measured 0.0094, confirming it. The ns-6 fleet
+measured 0.0059, but from only 7 evaluable pairs (the 6-sets rarely share a pool),
+so that estimate is weak, and switching delta per ns after seeing the results would
+be exactly the post-hoc tuning the rule is meant to exclude. Substantively the
+choice changes fillers, not the finding: the three core paths are in every
+shortlisted set under both deltas, and the delta-0.010 shortlists contain 3 of the
+6 (ns 4) and 3 of the 4 (ns 6) delta-0.005 sets, including the top ones. The
+delta-0.005 files (`reselect_d005.json`) are the sensitivity line in the report.
 
 **Why `--ns-search` is not in the final protocol.** Sampling 8 paths per step while
 selecting 4 trains the shared weights on 8-path mixtures and evaluates 4-subsets

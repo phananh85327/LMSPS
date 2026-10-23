@@ -39,8 +39,11 @@ archs = {
     # not necessarily any run's pick. Core relations {PPUPUP, PUPPUP, PUPUP}
     # appear in nearly every pick; the remaining slots are fillers with ~0
     # marginal effect. Downstream MUST use --split-seed 1. Chat log #18, Add. 9-10.
+
+    "amazon_lp_unique_strings": [
+        ['PCCPUP', 'PCPPUP', 'PCPUP', 'PCPUPP', 'PPCPUP', 'PPPPUP', 'PPPUP', 'PPPUPP', 'PPUP', 'PPUPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
     # ns 4 shortlist (6 sets); _c is also the most frequent pick
-    "amazon_lp_f4_c": [          # x5, consensus
+    "amazon_lp_f4_s1": [          # x5, consensus
         ['PPPUPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
     "amazon_lp_f4_s2": [         # x4
         ['PPUPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
@@ -60,7 +63,7 @@ archs = {
         ['PPCPUP', 'PPPPUP', 'PPPUPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
     "amazon_lp_f6_s3": [         # x2
         ['PPPPUP', 'PPPUPP', 'PPUP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
-    "amazon_lp_f6_c": [          # x2, consensus
+    "amazon_lp_f6_s4": [          # x2, consensus
         ['PPPPUP', 'PPPUPP', 'PPUPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
     "amazon_lp_f6_s5": [         # x2
         ['PPCPUP', 'PPPUPP', 'PPUPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],

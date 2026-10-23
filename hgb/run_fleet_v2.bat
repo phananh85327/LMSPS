@@ -97,11 +97,11 @@ python analyze_search_fleet.py "%OUT%\ns6\*.json" --prefix amazon_lp_v2_s6
 goto end
 
 :final4
-for /L %%s in (23,1,23) do python train_search.py %COMMON% %FINAL% --ns 4 --search-json "%OUT%\final_ns4\search_ns4_seed%%s.json" --seeds %%s > "%OUT%\final_ns4\search_ns4_seed%%s.txt" 2>&1
+for /L %%s in (1,1,30) do python train_search.py %COMMON% %FINAL% --ns 4 --search-json "%OUT%\final_ns4\search_ns4_seed%%s.json" --seeds %%s > "%OUT%\final_ns4\search_ns4_seed%%s.txt" 2>&1
 goto end
 
 :final6
-for /L %%s in (13,1,13) do python train_search.py %COMMON% %FINAL% --ns 6 --search-json "%OUT%\final_ns6\search_ns6_seed%%s.json" --seeds %%s > "%OUT%\final_ns6\search_ns6_seed%%s.txt" 2>&1
+for /L %%s in (1,1,30) do python train_search.py %COMMON% %FINAL% --ns 6 --search-json "%OUT%\final_ns6\search_ns6_seed%%s.json" --seeds %%s > "%OUT%\final_ns6\search_ns6_seed%%s.txt" 2>&1
 goto end
 
 :reselect

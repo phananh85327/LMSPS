@@ -77,6 +77,23 @@ archs = {
         ['PPPPUP', 'PPUP', 'PPUPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
     "amazon_lp_f6_s7": [         # x2
         ['PPPPUP', 'PPPUP', 'PPPUPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
+    # Manual meta-path sets
+    "amazon_lp_manual_1": [
+        ['PUP', 'PCP'], []],
+    "amazon_lp_manual_2": [
+        ['PP', 'PUP', 'PCP'], []],
+    "amazon_lp_manual_3": [
+        ['PP', 'PUP', 'PPUP'], []],
+    "amazon_lp_manual_4": [
+        ['PCP', 'PCCCP', 'PCPCP'], []],
+    "amazon_lp_manual_5": [
+        ['PP', 'PUP', 'PCP', 'PPUP'], []],
+    "amazon_lp_manual_6": [
+        ['PP', 'PUP', 'PCP', 'PPUP', 'PPP', 'PCCCP'], []],
+    "amazon_lp_manual_7": [
+        ['PP', 'PPP', 'PUP', 'PCP'], []],
+    "amazon_lp_manual_8": [
+        ['PUP', 'PCP', 'PUPUP', 'PCPUP'], []],
 }
 
 # reselect_fleet.py names the vote's consensus <prefix>_c, and the README and the HAN repo

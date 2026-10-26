@@ -124,6 +124,17 @@ def build_link_split(dl, src_type, dst_type, seed=0, val_ratio=0.1, test_ratio=0
     }
 
 
+def remove_target_edges(g, edges, target_relation):
+    """Remove (src, dst) target edges from BOTH directions of the message-passing
+    graph (etypes 'S-D' and 'D-S' for --target-relation "S,D"), so features
+    propagated afterwards cannot see them."""
+    s, d = target_relation.split(',')
+    src, dst = torch.LongTensor(edges[:, 0]), torch.LongTensor(edges[:, 1])  # edge_ids needs int64
+    g.remove_edges(g.edge_ids(src, dst, etype=f'{s}-{d}'), etype=f'{s}-{d}')
+    g.remove_edges(g.edge_ids(dst, src, etype=f'{d}-{s}'), etype=f'{d}-{s}')
+    return g
+
+
 def csr_to_sparse_tensor(csr, transpose=False):
     """Convert a scipy CSR matrix to a torch_sparse.SparseTensor, matching the
     row=dst/col=src convention used by load_dataset's adjs dict."""

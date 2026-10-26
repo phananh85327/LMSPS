@@ -47,6 +47,11 @@ the product side, `--user-tower embedding` on the user side).
 > Every number in "Fleet v2 final results", the `amazon_lp_f4_*` / `amazon_lp_f6_*` shortlists
 > and anything trained on them must be redone on the rebuilt data.
 > Details and evidence: `../review/part1_data_pipeline.md`.
+>
+> **Search changed 2026-10-26:** alpha now trains on the validation edges (`--alpha-edges val`,
+> paper Eq. 5). Fleet v2 trained it on training edges whose features contain the edge itself
+> (deviation 4 below; `../review/part2_split_negatives_leakage.md`). Reproducing Fleet v2 needs
+> the old data and `--alpha-edges train-half`.
 
 Data: `amazon-meta.txt` -> `amazon_extract.py` -> `dat_generator.py` -> HGB-format `data/AMAZON`.
 Node types 0=P(roduct) 1=C(ategory) 2=U(ser).
@@ -262,9 +267,15 @@ the results are reported as "LMSPS":
    sampling at K = 55 <= 2M = 60; the small M is what makes shrinking matter.
 3. **Single tower.** Only products are meta-path encoded; users are a free
    embedding table. Call it "LMSPS product encoder + MF-style user vectors".
-4. **Alpha update data.** Alpha is trained on an internal half of the TRAIN
-   edges, not on the real validation set (paper Eq. 5). The real validation
-   edges are used only to pick the final set in `project_op_lp`.
+4. **Alpha update data (`--alpha-edges`, changed 2026-10-26).** The default `val`
+   follows paper Eq. 5: weights on all train edges, alpha on the validation
+   edges, which also pick the final set in `project_op_lp` (upstream's
+   `project_op` likewise scores the half that trained alpha). Fleet v2 trained
+   alpha on an internal half of the TRAIN edges (`train-half`, kept for
+   reproduction only). Those edges are also message-passing edges, so each one's
+   user-path features contain the edge itself, and alpha learned to reward paths
+   for recognising edges already in the graph (`../review/part2_split_negatives_leakage.md`).
+   `heldout-half` keeps the internal split but removes the alpha half from the graph.
 5. **Inherited from the authors' code** (not this fork): no 20-epoch lambda
    warm-up (now available as `--warmup-epochs`, off by default), candidate pool
    ranked by raw alpha rather than Gumbel strength, sampling evaluation draws

@@ -13,6 +13,10 @@ REM  (--eval-no-gumbel), deterministic kernels (--deterministic).
 REM  Seeds 1..30 are RUN seeds: distinct seeds = the stability test;
 REM  same-seed deterministic runs are copies and prove only reproducibility.
 REM
+REM  2026-10-26: train_search.py now defaults to --alpha-edges val (review
+REM  part 2). The logs in logs\Fleet v2 used --alpha-edges train-half and the
+REM  pre-fix data; add that flag here only to reproduce them.
+REM
 REM  Usage:  run_fleet_v2.bat pilot | ns4 | ns6 | pilotB | final4 | final6 | reselect | analyze | all
 REM    FINAL PROTOCOL (2026-10-18 evening):
 REM    final4/final6  30 seeds each with --dedupe-reversed --warmup-epochs 15

@@ -6,6 +6,7 @@ import uuid
 import argparse
 import datetime
 import numpy as np
+import scipy.sparse as sp
 from tqdm import tqdm
 
 import torch
@@ -16,6 +17,7 @@ from torch_sparse import remove_diag, set_diag
 
 from model_search import *
 from utils import *
+from link_data import remove_target_edges
 try:
     from sparse_tools import SparseAdjList
 except ImportError as _e:  # compiled extension (python39 build in ../sparse_tools); unused by link prediction
@@ -36,6 +38,43 @@ def main_link_prediction(args, g, dl, link_split):
         assert 0, 'link prediction is currently only wired up for ACM and AMAZON'
 
     device = 'cuda:{}'.format(args.gpu) if not args.cpu else 'cpu'
+
+    # =======
+    # edges for the bi-level (DARTS) update: weights step on lp_train_edges, alpha
+    # step on lp_val_edges. Every training edge is also a message-passing edge, so
+    # its product's U-path features average in the user's own history (review
+    # part 2: PUP moves toward the user's taste on ~100% of training edges, held-out
+    # edges never get this). Alpha must learn on edges the features cannot see --
+    # the role remove_diag plays for upstream's label features:
+    #   val          (default) paper Eq. 5: weights on all train edges, alpha on the
+    #                real val edges, which also pick the final set in project_op_lp,
+    #                as upstream's project_op scores the half that trained alpha
+    #   heldout-half weights on one half of the train edges, alpha on the other,
+    #                which is removed from the message-passing graph
+    #   train-half   alpha on in-graph train edges: fleet v2 behaviour, reproduction only
+    # test_edges never touch the search. Whatever is trained on the found paths (HAN)
+    # MUST use the same split, or the val edges that chose the arch may be its test edges.
+    # =======
+    if args.alpha_edges == 'val':
+        lp_train_edges = link_split['train_edges']
+        lp_val_edges = link_split['val_edges']
+        # alpha negatives must not be another val positive of the same user either
+        alpha_exclude = (link_split['train_adj_src2dst'] + sp.csr_matrix(
+            (np.ones(len(lp_val_edges), dtype=np.float32), (lp_val_edges[:, 0], lp_val_edges[:, 1])),
+            shape=link_split['train_adj_src2dst'].shape)).sign().tocsr()
+    else:
+        rng = np.random.default_rng(args.seed)
+        perm = rng.permutation(link_split['train_edges'].shape[0])
+        half = len(perm) // 2
+        lp_train_edges = link_split['train_edges'][perm[:half]]
+        lp_val_edges = link_split['train_edges'][perm[half:]]
+        alpha_exclude = link_split['train_adj_src2dst']
+    if args.alpha_edges == 'heldout-half':
+        g = remove_target_edges(g, lp_val_edges, args.target_relation)
+        print(f'--alpha-edges heldout-half: {len(lp_val_edges)} alpha edges removed from the message-passing graph')
+
+    train_sampler = TrainEdgeSampler(lp_train_edges, link_split['train_adj_src2dst'], seed=args.seed)
+    val_sampler = TrainEdgeSampler(lp_val_edges, alpha_exclude, seed=args.seed + 1)
 
     # =======
     # neighbor aggregation (item/tgt side only -- searched via meta-paths)
@@ -100,25 +139,6 @@ def main_link_prediction(args, g, dl, link_split):
             src_attr = torch.FloatTensor(src_raw_attr)
 
     # =======
-    # search-internal train/val split of the train_edges for the bi-level (DARTS)
-    # update: weights step on one half, alpha step on the other. NOTE: the paper
-    # (Eq. 5 / App. A.3) updates alpha on the real validation set; we keep the
-    # real val_edges out of the alpha updates and use them ONLY in project_op_lp
-    # below, which scores the `--repeat` sampled path sets by validation BPR to
-    # pick the final arch (paper Eq. 6). test_edges never touch the search.
-    # Consequence: the retrain MUST use the same --split-seed as the search, or
-    # the val edges that chose the arch may be test edges of the retrain split.
-    # =======
-    rng = np.random.default_rng(args.seed)
-    perm = rng.permutation(link_split['train_edges'].shape[0])
-    half = len(perm) // 2
-    lp_train_edges = link_split['train_edges'][perm[:half]]
-    lp_val_edges = link_split['train_edges'][perm[half:]]
-
-    train_sampler = TrainEdgeSampler(lp_train_edges, link_split['train_adj_src2dst'], seed=args.seed)
-    val_sampler = TrainEdgeSampler(lp_val_edges, link_split['train_adj_src2dst'], seed=args.seed + 1)
-
-    # =======
     # eval loader over ALL tgt-type (item) nodes, for full embedding inference
     # =======
     num_dst = link_split['num_dst']
@@ -179,7 +199,7 @@ def main_link_prediction(args, g, dl, link_split):
     # it is glued to tqdm's carriage-return line and log parsers miss it)
     for epoch in tqdm(range(args.stage), disable=None):
         gc.collect()
-        torch.cuda.synchronize()
+        if not args.cpu: torch.cuda.synchronize()
 
         # paper App. B.4: lambda = 1 during the warm-up epochs (no shrinking), then
         # linear to 0; tau anneals over the full stage regardless
@@ -198,7 +218,7 @@ def main_link_prediction(args, g, dl, link_split):
                                           epoch_sampled, meta_path_sampled, label_meta_path_sampled,
                                           optimizer_w, optimizer_a, train_sampler, val_sampler,
                                           args.batch_size, device)
-        torch.cuda.synchronize()
+        if not args.cpu: torch.cuda.synchronize()
         end = time.time()
         train_times.append(end - start)
         print(f'Epoch {epoch}, train bpr {loss_w:.4f}, val bpr {loss_a:.4f}')
@@ -704,7 +724,7 @@ def main(args):
 
         for epoch in tqdm(range(args.stage)):
             gc.collect()
-            torch.cuda.synchronize()
+            if not args.cpu: torch.cuda.synchronize()
 
 
             # determain eps for operation selection
@@ -729,7 +749,7 @@ def main(args):
                                                             optimizer_w, optimizer_a, train_loader, val_loader,
                                                               epoch_sampled, meta_path_sampled, label_meta_path_sampled, 
                                                               evaluator, scalar=scalar)
-            torch.cuda.synchronize()
+            if not args.cpu: torch.cuda.synchronize()
             end = time.time()
 
 
@@ -852,6 +872,11 @@ def parse_args(args=None):
                              "sample gives every path more looks per epoch and compares it against more "
                              "companions in alpha's softmax; the final set still has --ns paths. "
                              "Must be <= --num_final. DEPARTURE from the paper when != --ns")
+    parser.add_argument("--alpha-edges", choices=["val", "heldout-half", "train-half"], default="val",
+                        help="edges the alpha step learns on. val = paper Eq. 5 (weights on all train edges, "
+                             "alpha on the val edges); heldout-half = half the train edges, taken out of the "
+                             "message-passing graph; train-half = in-graph train edges, whose U-path features "
+                             "contain the edge itself (fleet v2 behaviour, for reproduction only)")
     parser.add_argument("--report-delta", type=float, default=0.010,
                         help="after the sampling evaluation, print and record every scored set whose val "
                              "BPR is within this tolerance of the best (the run's own tie group). Use the "

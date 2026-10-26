@@ -126,13 +126,14 @@ def _write_filtered(out, seed=0):
     w('filtered_users.csv', ['ID', 'Name'], [(u, u) for u in users])
 
 
-def _load_amazon(tmp):
-    """utils.load_dataset on a small generated AMAZON graph."""
+def _load_amazon(tmp, generate=True):
+    """utils.load_dataset on a small generated AMAZON graph (generate=False reloads it)."""
     import utils   # torch, torch_sparse, dgl
-    _write_filtered(os.path.join(tmp, 'filtered'))
-    subprocess.run([sys.executable, os.path.join(HGB, 'dat_generator.py'), '--input', os.path.join(tmp, 'filtered'),
-                    '--output', os.path.join(tmp, 'AMAZON'), '--title-features', 'bow'],
-                   check=True, stdout=subprocess.DEVNULL)
+    if generate:
+        _write_filtered(os.path.join(tmp, 'filtered'))
+        subprocess.run([sys.executable, os.path.join(HGB, 'dat_generator.py'), '--input', os.path.join(tmp, 'filtered'),
+                        '--output', os.path.join(tmp, 'AMAZON'), '--title-features', 'bow'],
+                       check=True, stdout=subprocess.DEVNULL)
     args = argparse.Namespace(root=tmp, dataset='AMAZON', task='link_prediction', target_relation='U,P',
                               split_seed=1, num_neg_eval=20, edge_mask_ratio=0)
     g, adjs, *_, link_split = utils.load_dataset(args)
@@ -171,6 +172,52 @@ def test_remove_target_edges():
         u2p, p2u = _message_edges(g)
         kept = {tuple(e) for e in tr.tolist()} - {tuple(e) for e in held.tolist()}
         assert u2p == kept and p2u == kept, 'both directions must lose exactly the removed edges'
+
+
+def test_sampler_fold_ids():
+    """--wstep-kfold: the sampler returns each sampled edge's fold and draws exactly the same edges
+    and negatives as without fold ids, so --wstep-kfold 0 reproduces earlier runs."""
+    import torch
+    dl = FakeLoader()
+    s = build_link_split(dl, 2, 0, seed=1, num_neg_eval=20)
+    tr = s['train_edges']
+    fold_of = np.random.default_rng(0).integers(0, 4, size=len(tr))
+    plain = TrainEdgeSampler(tr, s['train_adj_src2dst'], seed=3)
+    folded = TrainEdgeSampler(tr, s['train_adj_src2dst'], seed=3, fold_of=fold_of)
+    index = {tuple(e): i for i, e in enumerate(tr.tolist())}       # train edges are unique
+    for _ in range(20):
+        a, b = plain.sample_batch(128), folded.sample_batch(128)
+        assert len(a) == 3 and len(b) == 4
+        assert all(torch.equal(x, y) for x, y in zip(a, b[:3])), 'fold ids must not change the random stream'
+        assert b[3].tolist() == [int(fold_of[index[(u, p)]]) for u, p in zip(b[0].tolist(), b[1].tolist())]
+
+
+def test_fold_user_path_feats():
+    """--wstep-kfold: fold f's user-path features equal a propagation on the graph without fold f
+    (both directions), only kept user-path keys come back in the requested dtype, and g is untouched."""
+    import torch
+    import utils
+    from link_data import remove_target_edges
+    with tempfile.TemporaryDirectory() as tmp:
+        g, link_split = _load_amazon(tmp)
+        tr = link_split['train_edges']
+        fold_of = np.random.default_rng(0).integers(0, 3, size=len(tr))
+        keep = lambda k: len(k) >= 2 and k[-1] == 'P'
+        before = {nt: {k: v.clone() for k, v in g.nodes[nt].data.items()} for nt in g.ntypes}
+        folds = utils.fold_user_path_feats(g, 'P', 3, 4, tr, fold_of, 'U,P', keep=keep, dtype=torch.float16)
+        after = {nt: dict(g.nodes[nt].data.items()) for nt in g.ntypes}
+        assert {nt: set(d) for nt, d in after.items()} == {nt: set(d) for nt, d in before.items()}, 'g gained/lost features'
+        assert all(torch.equal(after[nt][k], v) for nt, d in before.items() for k, v in d.items()), 'g features changed'
+        assert len(folds) == 3
+        for f, ff in enumerate(folds):
+            assert ff and all('U' in k and keep(k) and v.dtype == torch.float16 for k, v in ff.items())
+            ref, _ = _load_amazon(tmp, generate=False)
+            ref = utils.hg_propagate_feat_dgl(remove_target_edges(ref, tr[fold_of == f], 'U,P'), 'P', 3, 4)
+            expected = {k for k in ref.nodes['P'].data.keys() if 'U' in k and keep(k)}
+            assert set(ff) == expected, f
+            for k, v in ff.items():
+                assert torch.equal(v, ref.nodes['P'].data[k].half()), (f, k)
+        assert _message_edges(g) == ({tuple(e) for e in tr.tolist()},) * 2, 'g lost edges'
 
 
 if __name__ == '__main__':

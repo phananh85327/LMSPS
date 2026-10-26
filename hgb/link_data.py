@@ -155,11 +155,14 @@ class TrainEdgeSampler:
     positives here would leak the held-out edges into training (the model would
     never be pushed to down-score them -- a signal unavailable in deployment)."""
 
-    def __init__(self, train_edges, exclude_adj_src2dst, seed=0):
+    def __init__(self, train_edges, exclude_adj_src2dst, seed=0, fold_of=None):
         self.train_edges = train_edges
         self.exclude_adj_src2dst = exclude_adj_src2dst
         self.num_dst = exclude_adj_src2dst.shape[1]
         self.rng = np.random.default_rng(seed)
+        # optional fold id per train edge (--wstep-kfold): sample_batch then also
+        # returns each sampled edge's fold, drawing the same random numbers
+        self.fold_of = fold_of
 
     def num_batches(self, batch_size):
         return (self.train_edges.shape[0] - 1) // batch_size + 1
@@ -179,4 +182,7 @@ class TrainEdgeSampler:
             pending = pending[hits]
             if pending.size:
                 neg_dst[pending] = self.rng.integers(0, self.num_dst, size=pending.size)
+        if self.fold_of is not None:
+            return (torch.LongTensor(src), torch.LongTensor(pos_dst), torch.LongTensor(neg_dst),
+                    torch.LongTensor(self.fold_of[idx]))
         return torch.LongTensor(src), torch.LongTensor(pos_dst), torch.LongTensor(neg_dst)

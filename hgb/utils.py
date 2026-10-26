@@ -403,6 +403,32 @@ def hg_propagate_feat_dgl(g, tgt_type, num_hops, max_length, echo=False):
     return g
 
 
+def fold_user_path_feats(g, tgt_type, num_hops, max_length, train_edges, fold_of, target_relation,
+                         keep=lambda k: True, dtype=None):
+    """--wstep-kfold: propagate the target type's features once per fold, on a graph
+    WITHOUT that fold's training edges (both directions of target_relation "S,D").
+    The weight step reads each training edge's products from its own fold's graph,
+    so no positive sits inside its own features -- the role remove_diag plays for
+    upstream's label features. Call before g itself is propagated: the fold graphs
+    are new graphs and g is left untouched. Only keys that walk through S differ
+    between folds; of those, `keep` selects the ones to return (the search's
+    candidates), cast to `dtype` per fold so K full propagations never pile up.
+    Returns one {key: tensor} dict per fold."""
+    s, d = target_relation.split(',')
+    fold_feats = []
+    for f in range(int(fold_of.max()) + 1):
+        e = train_edges[fold_of == f]
+        src, dst = torch.LongTensor(e[:, 0]), torch.LongTensor(e[:, 1])  # edge_ids needs int64
+        gf = dgl.remove_edges(g, g.edge_ids(src, dst, etype=f'{s}-{d}'), etype=f'{s}-{d}')
+        gf = dgl.remove_edges(gf, gf.edge_ids(dst, src, etype=f'{d}-{s}'), etype=f'{d}-{s}')
+        gf = hg_propagate_feat_dgl(gf, tgt_type, num_hops, max_length, echo=False)
+        fold_feats.append({k: v.to(dtype) if dtype is not None else v
+                           for k, v in gf.nodes[tgt_type].data.items() if s in k and keep(k)})
+        del gf
+        gc.collect()
+    return fold_feats
+
+
 def hg_propagate_feat_dgl_path(g, tgt_type, num_hops, max_length, meta_path, echo=False):
     # A propagated key is built source-outward: pushing key k along stype->dtype
     # yields f'{dtype}{k}', so producing path X requires exactly X's suffixes as
@@ -862,11 +888,16 @@ def train_search_new(model, feats, label_feats, labels_cuda, loss_fcn, optimizer
 
 def train_search_lp(model, tower, feats, label_feats, src_attr, epoch_sampled, meta_path_sampled,
                      label_meta_path_sampled, optimizer_w, optimizer_a, train_sampler, val_sampler,
-                     batch_size, device, scalar=None):
+                     batch_size, device, scalar=None, fold_stack=None):
     """Link-prediction counterpart of train_search_new: same bi-level (DARTS)
     optimizer_w/optimizer_a structure, but batches are edge triplets
     (src, pos_dst, neg_dst) instead of node indices, and the loss is BPR over
-    dot-product scores instead of a classification criterion."""
+    dot-product scores instead of a classification criterion.
+
+    fold_stack (--wstep-kfold): {key: [K, num_dst, D]} features of the keys that
+    differ per fold (see fold_user_path_feats). The weight step then reads both
+    products of each triplet from the fold graph of the sampled edge, which the
+    train_sampler returns as a 4th tensor; the alpha step keeps `feats`."""
     model.train()
     tower.train()
     total_loss = 0.
@@ -874,20 +905,22 @@ def train_search_lp(model, tower, feats, label_feats, src_attr, epoch_sampled, m
     iter_num = train_sampler.num_batches(batch_size)
     src_attr_dev = src_attr.to(device)
 
-    def run(dst_ids):
-        batch_feats = {k: x[dst_ids].to(device).float() for k, x in feats.items()
+    def run(dst_ids, folds=None):
+        batch_feats = {k: (fold_stack[k][folds, dst_ids] if folds is not None and k in fold_stack
+                           else x[dst_ids]).to(device).float() for k, x in feats.items()
                        if k in meta_path_sampled or (model.residual and k == model.tgt_key)}
         batch_label_feats = {k: x[dst_ids].to(device) for k, x in label_feats.items()
                               if k in label_meta_path_sampled}
         return model(epoch_sampled, batch_feats, batch_label_feats, meta_path_sampled, label_meta_path_sampled)
 
     for _ in range(iter_num):
-        src, pos_dst, neg_dst = train_sampler.sample_batch(batch_size)
+        src, pos_dst, neg_dst, *fold = train_sampler.sample_batch(batch_size)
         val_src, val_pos_dst, val_neg_dst = val_sampler.sample_batch(batch_size)
+        folds = torch.cat([fold[0], fold[0]]) if fold_stack else None
 
         ########################################train
         optimizer_w.zero_grad()
-        dst_emb = run(torch.cat([pos_dst, neg_dst]))
+        dst_emb = run(torch.cat([pos_dst, neg_dst]), folds)
         pos_emb, neg_emb = dst_emb[:len(pos_dst)], dst_emb[len(pos_dst):]
         src_emb = tower(src_attr_dev[src.to(device)])
         loss_train = bpr_loss((src_emb * pos_emb).sum(-1), (src_emb * neg_emb).sum(-1))

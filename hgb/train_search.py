@@ -73,7 +73,19 @@ def main_link_prediction(args, g, dl, link_split):
         g = remove_target_edges(g, lp_val_edges, args.target_relation)
         print(f'--alpha-edges heldout-half: {len(lp_val_edges)} alpha edges removed from the message-passing graph')
 
-    train_sampler = TrainEdgeSampler(lp_train_edges, link_split['train_adj_src2dst'], seed=args.seed)
+    # =======
+    # --wstep-kfold K: the alpha step is off in-graph edges now, but the WEIGHT step
+    # still trains on them, so the weights learn to rely on a self-signal held-out
+    # edges never carry, and user paths then look worse on val than they are
+    # (review part 3, F8: PUP alpha rank 19 -> 9, seeds agree more). Each fold of
+    # lp_train_edges gets features propagated without it; an edge reads its fold's.
+    # =======
+    fold_of = None
+    if args.wstep_kfold > 1:
+        # fold stream: independent of the samplers' seed and seed + 1
+        fold_of = np.random.default_rng(args.seed + 7).integers(0, args.wstep_kfold, size=len(lp_train_edges))
+
+    train_sampler = TrainEdgeSampler(lp_train_edges, link_split['train_adj_src2dst'], seed=args.seed, fold_of=fold_of)
     val_sampler = TrainEdgeSampler(lp_val_edges, alpha_exclude, seed=args.seed + 1)
 
     # =======
@@ -81,6 +93,15 @@ def main_link_prediction(args, g, dl, link_split):
     # =======
     max_length = args.num_hops + 1
     prop_tic = datetime.datetime.now()
+    fold_feats = None
+    if fold_of is not None:
+        # only the candidates the filters below keep, stored like feats
+        def is_candidate(k):
+            return ((not args.tgt_ended_paths or (len(k) >= 2 and k[-1] == tgt_type))
+                    and (not args.dedupe_reversed or k <= k[::-1]))
+        fold_feats = fold_user_path_feats(g, tgt_type, args.num_hops, max_length, lp_train_edges, fold_of,
+                                          args.target_relation, keep=is_candidate,
+                                          dtype=torch.float16 if args.half_feats else None)
     g = hg_propagate_feat_dgl(g, tgt_type, args.num_hops, max_length, echo=True)
 
     feats = {}
@@ -111,6 +132,12 @@ def main_link_prediction(args, g, dl, link_split):
         # train_search_lp / infer_full_embeddings_* upcast to fp32 on the GPU
         feats = {k: v.half() for k, v in feats.items()}
     data_size = {k: v.size(-1) for k, v in feats.items()}
+    fold_stack = {}
+    if fold_feats is not None:
+        fold_stack = {k: torch.stack([ff[k] for ff in fold_feats]) for k in fold_feats[0]}  # [K, num_dst, D]
+        del fold_feats
+        print(f'--wstep-kfold {args.wstep_kfold}: the weight step reads {len(fold_stack)} of {len(feats)} '
+              f'candidates per fold ({np.bincount(fold_of).tolist()} train edges per fold)')
     prop_toc = datetime.datetime.now()
     print(f'Time used for feat prop {prop_toc - prop_tic}')
     gc.collect()
@@ -217,7 +244,7 @@ def main_link_prediction(args, g, dl, link_split):
         loss_w, loss_a = train_search_lp(model, tower, feats, label_feats, src_attr,
                                           epoch_sampled, meta_path_sampled, label_meta_path_sampled,
                                           optimizer_w, optimizer_a, train_sampler, val_sampler,
-                                          args.batch_size, device)
+                                          args.batch_size, device, fold_stack=fold_stack)
         if not args.cpu: torch.cuda.synchronize()
         end = time.time()
         train_times.append(end - start)
@@ -877,6 +904,11 @@ def parse_args(args=None):
                              "alpha on the val edges); heldout-half = half the train edges, taken out of the "
                              "message-passing graph; train-half = in-graph train edges, whose U-path features "
                              "contain the edge itself (fleet v2 behaviour, for reproduction only)")
+    parser.add_argument("--wstep-kfold", type=int, default=4,
+                        help="the weight step reads each training edge's product features from a graph without "
+                             "that edge's fold (K folds), so no positive sits inside its own features. Costs K "
+                             "extra feature propagations and K copies of the user-path candidates in CPU RAM "
+                             "(~2 GB on the rebuilt AMAZON data at K = 4). 0 = off (fleet v2 behaviour)")
     parser.add_argument("--report-delta", type=float, default=0.010,
                         help="after the sampling evaluation, print and record every scored set whose val "
                              "BPR is within this tolerance of the best (the run's own tie group). Use the "

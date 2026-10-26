@@ -50,8 +50,10 @@ the product side, `--user-tower embedding` on the user side).
 >
 > **Search changed 2026-10-26:** alpha now trains on the validation edges (`--alpha-edges val`,
 > paper Eq. 5). Fleet v2 trained it on training edges whose features contain the edge itself
-> (deviation 4 below; `../review/part2_split_negatives_leakage.md`). Reproducing Fleet v2 needs
-> the old data and `--alpha-edges train-half`.
+> (deviation 4 below; `../review/part2_split_negatives_leakage.md`). The weight step now reads
+> each training edge's features from a graph without it (`--wstep-kfold 4`, deviation 8;
+> `../review/part3_search_fidelity.md`). Reproducing Fleet v2 needs the old data,
+> `--alpha-edges train-half` and `--wstep-kfold 0`.
 
 Data: `amazon-meta.txt` -> `amazon_extract.py` -> `dat_generator.py` -> HGB-format `data/AMAZON`.
 Node types 0=P(roduct) 1=C(ategory) 2=U(ser).
@@ -292,6 +294,15 @@ the results are reported as "LMSPS":
    candidates: 17 palindromes + 19 representatives). The paper has no such step
    because its target-net concatenates all M paths and never reuses them as
    graphs; state it as a search-space choice.
+8. **`--wstep-kfold K` (link prediction only, default 4).** A training edge is also
+   a message-passing edge, so its product's user-path features contain the edge
+   itself. With alpha on the validation edges (deviation 4), the weight step still
+   learned to rely on that self-signal, and user paths then looked worse on
+   validation than they are. The training edges are split into K folds, features
+   are propagated once per fold without it, and the weight step reads each edge's
+   own fold; alpha and the final scoring keep the full training graph. Node
+   classification has no counterpart: labels are never part of the graph. Costs K
+   extra propagations and K copies of the user-path candidates in CPU RAM.
 
 **Search stability (fleet v2, seeds 21-30, ns 4, 2026-10-18).** Same seed ->
 identical run. Different seeds -> different 4-sets, but PPUPUP in 9/10,

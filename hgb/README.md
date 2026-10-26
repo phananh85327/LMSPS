@@ -117,8 +117,10 @@ tables and can be re-run with any `--delta`.
 
 **Why the per-run argmin cannot be the unit of comparison.** Per run, the 210
 exhaustively scored 4-sets contain 12-78 sets within 0.010 val BPR of the best
-(4-33 within 0.005), and the seed alone moves any set's score by ~0.008 (median,
-measured by scoring one run's winner in another run's table). Inside that tie
+(4-33 within 0.005), and the seed alone moves a set's score by ~0.006 (ns 4; 0.005
+for ns 6; review part 5, from the sets two runs share). Re-scoring one run's winner
+in another run's table costs ~0.009, more, because a winner also carries the
+winner's curse. Inside that tie
 group a run has no seed-independent information: every self-contained rule we
 replayed on the 20 saved tables (argmin; plateau centre at delta 0.005-0.020;
 parsimony; loss + lambda * hops) leaves 7-10 distinct sets out of 10. Averaging
@@ -136,12 +138,22 @@ fleet result is a count over those declared ties:
 - It then prints the **1-SE table**: per run, among the sets within delta of its
   best, the one whose paths were selected most often by the *other* runs
   (leave-one-out, so no run votes for itself), ties by loss. Old-schedule runs:
-  10 distinct -> 3 (x7). This is Breiman's one-standard-error rule; the per-run
-  argmin is itself an arbitrary tie-break, this one is a declared tie-break.
+  10 distinct -> 3 (x7). This is a leave-one-out vote, not Breiman's rule (which
+  picks the simplest model within one SE of the best), and it pulls the runs
+  together by construction: a null fleet with every run's scores shuffled already
+  reaches 37% duplicates for both ns, against the observed 50% (ns 4) and 37%
+  (ns 6). So the duplicate rate is not evidence of stability (review part 5).
 - delta is fixed in advance to the measured cross-seed noise (0.010) and the
   0.005 line is reported as sensitivity. Choosing delta after seeing which value
   maximises duplicates would be the thing to avoid.
 - Report both tables; HAN trains the consensus plus every 1-SE set seen >= 2 times.
+- **Since review part 5:** two runs rank their shared sets alike (Spearman ~0.7), so
+  scores can be averaged. `reselect_fleet.py` also prints **averaged scores** (all
+  runs pooled, run effect + set effect) with a real one-SE rule: every set within
+  one SE of the best, fewest total hops first. Out of sample (split halves of fleet
+  v2) it picked sets at least as good as the vote. For the rerun, report that
+  ranking, give HAN its one-SE sets, read the duplicate rate only against its
+  printed null, and read path counts as pick rates when available.
 
 **Fleet v2 final results (2026-10-22; `logs/Fleet v2/final_ns4|final_ns6`, 30 seeds each,
 identical config, no warnings). PRE-FIX DATA: superseded, see the 2026-10-26 note at the top
@@ -179,8 +191,9 @@ before the final fleets ran, from the measured cross-seed noise of the old group
 measured 0.0059, but from only 7 evaluable pairs (the 6-sets rarely share a pool),
 so that estimate is weak, and switching delta per ns after seeing the results would
 be exactly the post-hoc tuning the rule is meant to exclude. Substantively the
-choice changes fillers, not the finding: the three core paths are in every
-shortlisted set under both deltas, and the delta-0.010 shortlists contain 3 of the
+choice changes fillers: the three core paths are in every ns-6 shortlisted set,
+but not for ns 4, where two of the six delta-0.010 sets lack PUPUP and four of the
+six delta-0.005 sets lack PUPUP or PUPPUP (review part 5). The delta-0.010 shortlists contain 3 of the
 6 (ns 4) and 3 of the 4 (ns 6) delta-0.005 sets, including the top ones. The
 delta-0.005 files (`reselect_d005.json`) are the sensitivity line in the report.
 

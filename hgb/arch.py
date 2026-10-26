@@ -39,6 +39,10 @@ archs = {
     # not necessarily any run's pick. Core relations {PPUPUP, PUPPUP, PUPUP}
     # appear in nearly every pick; the remaining slots are fillers with ~0
     # marginal effect. Downstream MUST use --split-seed 1. Chat log #18, Add. 9-10.
+    # SUPERSEDED (2026-10-26): every Fleet v2 set below was searched on the pre-fix AMAZON
+    # data (edition duplicates: 73% of val/test edges had a copy in train; placeholder
+    # customer ATVPDKIKX0DER on 61% of products). Re-run the search on the rebuilt data
+    # before using them -- review/part1_data_pipeline.md.
 
     "amazon_lp_unique_strings": [
         ['PCCPUP', 'PCPPUP', 'PCPUP', 'PCPUPP', 'PPCPUP', 'PPPPUP', 'PPPUP', 'PPPUPP', 'PPUP', 'PPUPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],

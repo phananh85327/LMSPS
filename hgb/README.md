@@ -38,9 +38,42 @@ recommendation on the Amazon-Meta dataset: BPR loss, sampled-negative ranking
 evaluation (99 negatives per test edge), single-tower design (meta-path search on
 the product side, `--user-tower embedding` on the user side).
 
-Data: C# preprocessing (Preprocessor -> AmazonGraphFilter) -> `dat_generator.py
---input <Filtered_Output> --output <data/AMAZON> --verify` -> HGB-format
-`data/AMAZON`. Node types 0=P(roduct) 1=C(ategory) 2=U(ser).
+> **Data rebuilt 2026-10-26: the Fleet v2 results below are from the pre-fix data.**
+> The original extraction kept two problems of the raw SNAP data:
+> - **Edition duplicates.** One review appears on every edition of a work, so 73% of val/test
+>   edges had a copy in train.
+> - **Placeholder customers.** `ATVPDKIKX0DER` alone reviewed 61% of all products.
+>
+> Every number in "Fleet v2 final results", the `amazon_lp_f4_*` / `amazon_lp_f6_*` shortlists
+> and anything trained on them must be redone on the rebuilt data.
+> Details and evidence: `../review/part1_data_pipeline.md`.
+
+Data: `amazon-meta.txt` -> `amazon_extract.py` -> `dat_generator.py` -> HGB-format `data/AMAZON`.
+Node types 0=P(roduct) 1=C(ategory) 2=U(ser).
+
+```bash
+python amazon_extract.py --input <amazon-meta.txt> --output ../data/AMAZON_filtered
+python dat_generator.py --input ../data/AMAZON_filtered --output ../data/AMAZON --verify
+python audit_amazon_data.py --filtered ../data/AMAZON_filtered --out ../data/AMAZON/audit.json
+python tests/test_amazon_extract.py
+```
+
+What each step does:
+- **`amazon_extract.py`** ports the C# extraction (`extraction_cs/`, Preprocessor -> AmazonGraphFilter).
+  Both write identical files. Products are merged per work (editions sharing >= 3 identical review
+  lines covering >= 50% of the smaller one) and placeholder customers are dropped, both before the
+  5-core. The edition map goes to `filtered_edition_map.csv`; per-phase counts go to
+  `extraction_report.json`.
+- **`dat_generator.py`** now defaults to:
+  - leaf-only product->category links (`--category-links leaf`)
+  - TF-IDF + SVD title features (`--title-features lsa --title-dim 256`)
+  - IDs as node names
+
+  It records its settings in `data/AMAZON/meta.json`.
+- **The audit** must show no hub user (section 2), 0 duplicate clusters (section 3) and about 0%
+  leakage (section 4).
+- **Reproducing the old data:** `amazon_extract.py --legacy` plus
+  `dat_generator.py --title-features bow --category-links all`.
 
 ### Search stage (meta-path discovery)
 
@@ -104,7 +137,8 @@ fleet result is a count over those declared ties:
 - Report both tables; HAN trains the consensus plus every 1-SE set seen >= 2 times.
 
 **Fleet v2 final results (2026-10-22; `logs/Fleet v2/final_ns4|final_ns6`, 30 seeds each,
-identical config, no warnings).**
+identical config, no warnings). PRE-FIX DATA: superseded, see the 2026-10-26 note at the top
+of this section.**
 
 | | ns 4 | ns 6 |
 |---|---|---|

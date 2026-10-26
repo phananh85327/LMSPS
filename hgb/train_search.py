@@ -909,6 +909,11 @@ def parse_args(args=None):
                              "that edge's fold (K folds), so no positive sits inside its own features. Costs K "
                              "extra feature propagations and K copies of the user-path candidates in CPU RAM "
                              "(~2 GB on the rebuilt AMAZON data at K = 4). 0 = off (fleet v2 behaviour)")
+    parser.add_argument("--same-type-loops", action="store_true",
+                        help="AMAZON: add self-loops to P-P and C-C before propagation, so a P-P or C-C step "
+                             "may stay put ('PPUP' then contains 'PUP'). Fleet v1/v2 behaviour, for "
+                             "reproduction only: meta-path models (HAN, metapath2vec) build paths from the "
+                             "plain relations, so by default the search scores what they will build")
     parser.add_argument("--report-delta", type=float, default=0.010,
                         help="after the sampling evaluation, print and record every scored set whose val "
                              "BPR is within this tolerance of the best (the run's own tie group). Use the "

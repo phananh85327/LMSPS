@@ -15,8 +15,9 @@ REM  same-seed deterministic runs are copies and prove only reproducibility.
 REM
 REM  2026-10-26: train_search.py now defaults to --alpha-edges val (review
 REM  part 2) and --wstep-kfold 4 (review part 3). The logs in logs\Fleet v2
-REM  used --alpha-edges train-half --wstep-kfold 0 and the pre-fix data; add
-REM  those flags here only to reproduce them.
+REM  used --alpha-edges train-half --wstep-kfold 0 --same-type-loops (review
+REM  part 9: P-P / C-C self-loops) and the pre-fix data; add those flags here
+REM  only to reproduce them.
 REM
 REM  Usage:  run_fleet_v2.bat pilot | ns4 | ns6 | pilotB | final4 | final6 | reselect | analyze | all
 REM    FINAL PROTOCOL (2026-10-18 evening):

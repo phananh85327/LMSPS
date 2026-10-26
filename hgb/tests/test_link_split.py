@@ -126,7 +126,7 @@ def _write_filtered(out, seed=0):
     w('filtered_users.csv', ['ID', 'Name'], [(u, u) for u in users])
 
 
-def _load_amazon(tmp, generate=True):
+def _load_amazon(tmp, generate=True, **flags):
     """utils.load_dataset on a small generated AMAZON graph (generate=False reloads it)."""
     import utils   # torch, torch_sparse, dgl
     if generate:
@@ -135,7 +135,7 @@ def _load_amazon(tmp, generate=True):
                         '--output', os.path.join(tmp, 'AMAZON'), '--title-features', 'bow'],
                        check=True, stdout=subprocess.DEVNULL)
     args = argparse.Namespace(root=tmp, dataset='AMAZON', task='link_prediction', target_relation='U,P',
-                              split_seed=1, num_neg_eval=20, edge_mask_ratio=0)
+                              split_seed=1, num_neg_eval=20, edge_mask_ratio=0, **flags)
     g, adjs, *_, link_split = utils.load_dataset(args)
     return g, link_split
 
@@ -159,6 +159,19 @@ def test_amazon_graph_uses_train_edges_only():
         assert u2p == train and p2u == train, 'U-P message edges must be exactly the training edges'
         assert not (u2p & heldout) and not (p2u & heldout)
 
+
+
+def test_amazon_same_type_loops():
+    """P-P and C-C carry no self-loops unless --same-type-loops: meta-path models build paths
+    from the plain relations, so the search's 'PPUP' must not contain 'PUP'."""
+    with tempfile.TemporaryDirectory() as tmp:
+        g, _ = _load_amazon(tmp)
+        looped, _ = _load_amazon(tmp, generate=False, same_type_loops=True)
+        for et, nt in (('P-P', 'P'), ('C-C', 'C')):
+            plain = set(zip(*[x.tolist() for x in g.edges(etype=et)]))
+            assert plain and all(a != b for a, b in plain), f'{et}: self-loop without --same-type-loops'
+            loops = {(i, i) for i in range(g.num_nodes(nt))}
+            assert set(zip(*[x.tolist() for x in looped.edges(etype=et)])) == plain | loops, et
 
 def test_remove_target_edges():
     """--alpha-edges heldout-half: the alpha half must leave both directions of the graph

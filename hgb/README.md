@@ -52,8 +52,10 @@ the product side, `--user-tower embedding` on the user side).
 > paper Eq. 5). Fleet v2 trained it on training edges whose features contain the edge itself
 > (deviation 4 below; `../review/part2_split_negatives_leakage.md`). The weight step now reads
 > each training edge's features from a graph without it (`--wstep-kfold 4`, deviation 8;
-> `../review/part3_search_fidelity.md`). Reproducing Fleet v2 needs the old data,
-> `--alpha-edges train-half` and `--wstep-kfold 0`.
+> `../review/part3_search_fidelity.md`). P-P and C-C no longer get self-loops, so a path
+> means what a meta-path model will build from it (`--same-type-loops` restores them,
+> deviation 9; `../review/part9_han_evaluation.md`). Reproducing Fleet v2 needs the old
+> data, `--alpha-edges train-half`, `--wstep-kfold 0` and `--same-type-loops`.
 
 Data: `amazon-meta.txt` -> `amazon_extract.py` -> `dat_generator.py` -> HGB-format `data/AMAZON`.
 Node types 0=P(roduct) 1=C(ategory) 2=U(ser).
@@ -316,6 +318,16 @@ the results are reported as "LMSPS":
    own fold; alpha and the final scoring keep the full training graph. Node
    classification has no counterpart: labels are never part of the graph. Costs K
    extra propagations and K copies of the user-path candidates in CPU RAM.
+9. **Plain same-type relations (changed 2026-10-26).** Upstream adds self-loops to
+   ACM's P-P adjacency, and Fleet v1/v2 did the same for AMAZON's P-P and C-C. A
+   self-loop lets a step stay put, so the search's `PPUP` also contained `PUP`: a
+   product without an also-bought partner (11.8% of them on the old data) got its
+   own `PUP` feature as `PPUP`, and on a small graph `PPUPUP` and `PUPPUP` came out
+   identical to `PUPUP`. Meta-path models build a path from the plain relations (HAN's
+   meta-path neighbours, metapath2vec's walks), where `PPUP` is only "reviewed together
+   with an also-bought product"; with leaf-only categories `PCCP` is then nearly empty.
+   The default now matches them, and the paper's Eq. 1 has no self-loops either;
+   `--same-type-loops` is for reproducing Fleet v2.
 
 **Search stability (fleet v2, seeds 21-30, ns 4, 2026-10-18).** Same seed ->
 identical run. Different seeds -> different 4-sets, but PPUPUP in 9/10,

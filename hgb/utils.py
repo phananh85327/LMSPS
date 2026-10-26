@@ -1471,17 +1471,24 @@ def load_dataset(args):
         # adjacency (as ACM does for PP): hg_propagate_feat_dgl names propagated
         # tensors f'{dtype}{src_key}', so two parallel same-type etypes would
         # write the same key and the second update_all would silently win.
+        # Self-loops (upstream ACM's PP.set_diag) make a P-P or C-C step optional,
+        # so 'PPUP' would also contain 'PUP' and 'PCCP' would contain 'PCP'. Meta-path
+        # models build a path from the plain relations (HAN's meta-path neighbours,
+        # metapath2vec's walks), so the search does too unless --same-type-loops.
+        same_type_loops = getattr(args, 'same_type_loops', False)
         row0, col0, _ = PP.coo()
         row1, col1, _ = PP_r.coo()
         PP = SparseTensor(row=torch.cat((row0, row1)), col=torch.cat((col0, col1)), sparse_sizes=PP.sparse_sizes())
         PP = PP.coalesce()
-        PP = PP.set_diag()
+        if same_type_loops:
+            PP = PP.set_diag()
 
         row0, col0, _ = CC.coo()
         row1, col1, _ = CC_r.coo()
         CC = SparseTensor(row=torch.cat((row0, row1)), col=torch.cat((col0, col1)), sparse_sizes=CC.sparse_sizes())
         CC = CC.coalesce()
-        CC = CC.set_diag()
+        if same_type_loops:
+            CC = CC.set_diag()
 
         if link_split is not None:
             # swap BOTH directions of the target relation for the train-only

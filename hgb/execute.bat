@@ -10,8 +10,10 @@ REM
 REM   execute.bat            -> run_fleet_v2.bat reselect
 REM   execute.bat final4     -> run_fleet_v2.bat final4
 REM   execute.bat final6     -> run_fleet_v2.bat final6
+REM (Until 2026-10-26 no argument ran "all": 60 searches writing over the committed
+REM Fleet v2 logs.) The rerun on the rebuilt data is run_fleet_v3.bat.
 if "%~1"=="" (
-  call "%~dp0run_fleet_v2.bat" all
+  call "%~dp0run_fleet_v2.bat" reselect
 ) else (
   call "%~dp0run_fleet_v2.bat" %*
 )

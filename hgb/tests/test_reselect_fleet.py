@@ -12,6 +12,7 @@ import json
 import os
 import random
 import statistics
+import subprocess
 import sys
 import tempfile
 
@@ -22,7 +23,7 @@ from reselect_fleet import averaged_scores, load_runs, null_distinct, reselect, 
 PATHS = ['P%d' % i for i in range(12)]
 
 
-def _fleet(tmp, n_runs=20, noise=0.003, signal=True, run_spread=0.05, seed=0):
+def _fleet(tmp, n_runs=20, noise=0.003, signal=True, run_spread=0.05, seed=0, args=None):
     """Write n_runs search records; returns (runs, true path effects)."""
     rng = random.Random(seed)
     effect = {p: (-0.004 * (12 - i) / 12 if signal else 0.0) for i, p in enumerate(PATHS)}
@@ -32,7 +33,7 @@ def _fleet(tmp, n_runs=20, noise=0.003, signal=True, run_spread=0.05, seed=0):
         table = [{'paths': list(s), 'val_bpr': offset + sum(effect[p] for p in s) + rng.gauss(0, noise)}
                  for s in itertools.combinations(pool, 4)]
         with open(os.path.join(tmp, f'search_seed{r}.json'), 'w') as fh:
-            json.dump({'seed': r, 'eval_table': table, 'final_pool': pool, 'args': {}}, fh)
+            json.dump({'seed': r, 'eval_table': table, 'final_pool': pool, 'args': args or {}}, fh)
     return load_runs([os.path.join(tmp, 'search_seed*.json')]), effect
 
 
@@ -90,6 +91,29 @@ def test_null_separates_agreement_from_the_vote():
         obs = len({s for s, _, _ in reselect(runs, 0.002, 'argmin')})
         null = null_distinct(runs, 0.002, 'argmin', n=100)
         assert obs < null[5], (obs, null[5])
+
+
+def test_arch_entries_and_provenance():
+    """The printed arch.py entries: <prefix>_a<i> = the averaged one-SE sets in order, and the
+    provenance line comes from the runs' own args (records without a flag get its old
+    behaviour, as Fleet v2's do)."""
+    for args, expect in (({'split_seed': 1, 'stage': 150, 'ns': 4, 'alpha_edges': 'val', 'wstep_kfold': 4,
+                           'dropout': 0.5, 'same_type_loops': False},
+                          'split-seed 1, stage 150, ns 4, alpha-edges val, wstep-kfold 4, dropout 0.5, plain relations'),
+                         ({}, 'alpha-edges train-half, wstep-kfold 0, P-P/C-C self-loops')):
+        with tempfile.TemporaryDirectory() as tmp:
+            _fleet(tmp, noise=0.006, args=args)          # noisy enough for several one-SE sets
+            out = os.path.join(tmp, 'summary.json')
+            text = subprocess.run([sys.executable, os.path.join(HGB, 'reselect_fleet.py'),
+                                   os.path.join(tmp, 'search_seed*.json'), '--delta', '0.006', '--prefix', 'k',
+                                   '--null-draws', '0', '--out', out],
+                                  check=True, capture_output=True, text=True).stdout
+            summary = json.load(open(out, encoding='utf-8'))
+            assert expect in summary['provenance'], summary['provenance']
+            assert len(summary['averaged_one_se']) >= 2, 'fixture: need several one-SE sets to check their order'
+            assert summary['averaged_one_se_keys'] == [f'k_a{i}' for i in range(1, len(summary['averaged_one_se']) + 1)]
+            for key, paths in zip(summary['averaged_one_se_keys'], summary['averaged_one_se']):
+                assert f'"{key}": [\n        [{", ".join(repr(p) for p in paths)}], []],' in text, key
 
 
 def test_vote_reproduces_the_committed_fleet_v2_files():

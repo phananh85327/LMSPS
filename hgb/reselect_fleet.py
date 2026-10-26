@@ -24,8 +24,10 @@ can be re-run for any delta and no GPU time is needed.
     python reselect_fleet.py "logs/Fleet v2/final_ns4/search_*.json" --delta 0.010 --prefix amazon_lp_f4
 
 Prints: per-run argmin -> re-selected set, distinct counts and duplicate rates
-for both, path frequencies, consensus, cross-seed noise, arch.py entries. Since
-review part 5 (2026-10-26) also:
+for both, path frequencies, consensus, cross-seed noise, arch.py entries (keys
+<prefix>_a<i> for the averaged one-SE sets, <prefix>_c / <prefix>_s<i> for the
+vote's consensus and shortlist; the comment line above them records how the fleet
+was searched, read from the runs' own args). Since review part 5 (2026-10-26) also:
 - the score noise of one set and the runs' ranking agreement, from shared sets
 - averaged scores (all runs pooled) and a real one-SE rule on them
 - the duplicate rate a null fleet with shuffled scores gets from the vote alone
@@ -35,6 +37,7 @@ review part 5 (2026-10-26) also:
 import argparse
 import glob
 import json
+import os
 import random
 import statistics
 from collections import Counter
@@ -70,8 +73,32 @@ def load_runs(patterns):
             'ns_search': rec.get('ns_search'), 'warmup': rec.get('warmup_epochs'),
             'dedupe': (rec.get('args') or {}).get('dedupe_reversed'),
             'final_pool': rec.get('final_pool'),
+            'args': rec.get('args') or {},
         })
     return runs
+
+
+def provenance(runs):
+    """How the fleet was searched, from the runs' own recorded args, for the arch.py
+    comments. Records written before a flag existed get that flag's old behaviour:
+    Fleet v2 trained alpha on a training half, had no weight-step folds and used P-P /
+    C-C self-loops."""
+    old = {'alpha_edges': 'train-half', 'wstep_kfold': 0, 'same_type_loops': True}
+    fields = (('split_seed', 'split-seed {}'), ('stage', 'stage {}'), ('ns', 'ns {}'),
+              ('num_final', 'num_final {}'), ('alpha_edges', 'alpha-edges {}'),
+              ('wstep_kfold', 'wstep-kfold {}'), ('dropout', 'dropout {}'),
+              ('same_type_loops', '{}'))
+    parts = []
+    for key, fmt in fields:
+        vals = {r['args'].get(key, old.get(key)) for r in runs}
+        if vals == {None}:
+            continue
+        v = vals.pop() if len(vals) == 1 else 'MIXED ' + '/'.join(sorted(map(str, vals)))
+        if key == 'same_type_loops' and not str(v).startswith('MIXED'):
+            v = 'P-P/C-C self-loops' if v else 'plain relations'
+        parts.append(fmt.format(v))
+    folders = sorted({os.path.dirname(r['file']) for r in runs})
+    return f'{", ".join(parts)}; {len(runs)} runs in {" + ".join(folders)}'
 
 
 def cross_seed_noise(runs):
@@ -290,11 +317,17 @@ def main(args):
     print(f'\n== arch.py entries (prefix "{args.prefix}" is only the key name stem)')
     def entry(key, paths, note):
         return f'    # {note}\n    "{key}": [\n        [{", ".join(repr(p) for p in paths)}], []],'
-    prov = f'fleet v2 final schedule, split-seed 1, 1-SE delta {args.delta:.3f}'
+    prov = provenance(runs)
+    print(f'    # ---- {prov}')
+    # the averaged one-SE sets come first: the ranking review part 5 recommends for HAN
+    avg_keys = [f'{args.prefix}_a{i}' for i in range(1, len(avg_short) + 1)]
+    for key, s in zip(avg_keys, avg_short):
+        print(entry(key, list(s), f'averaged one-SE set, {hops(s)} hops, +{seen[s][0] - best_eff:.4f} vs the best '
+                                  f'averaged score, scored in {seen[s][1]}/{len(runs)} runs'))
     for i, (s, c) in enumerate(shortlist, 1):
         key = f'{args.prefix}_c' if s == consensus else f'{args.prefix}_s{i}'
         what = 'path-frequency consensus' if s == consensus else '1-SE pick'
-        print(entry(key, list(s), f'{prov}; {what} in {c}/{len(runs)} runs'))
+        print(entry(key, list(s), f'{what} in {c}/{len(runs)} runs (vote, delta {args.delta:.3f})'))
 
     if args.out:
         summary = {
@@ -311,6 +344,8 @@ def main(args):
             'averaged': [{'paths': list(s), 'vs_best': seen[s][0] - best_eff, 'runs': seen[s][1]}
                          for s in sorted(seen, key=lambda s: seen[s][0])[:args.top]] if best_eff is not None else [],
             'averaged_one_se': [list(s) for s in avg_short],
+            'averaged_one_se_keys': avg_keys,
+            'provenance': prov,
             'null_distinct': null,
         }
         with open(args.out, 'w', encoding='utf-8') as fh:
@@ -338,8 +373,9 @@ def parse_args():
     ap.add_argument('--canonical', action='store_true',
                     help='collapse reverse pairs (X / reversed X) when counting distinct sets')
     ap.add_argument('--prefix', type=str, default='amazon_lp_fleet',
-                    help='name stem for the generated arch.py keys (<prefix>_c = consensus, <prefix>_s1.. = shortlist); '
-                         'cosmetic only, no effect on the analysis')
+                    help='name stem for the generated arch.py keys (<prefix>_a1.. = averaged one-SE sets, simplest '
+                         'first; <prefix>_c = vote consensus, <prefix>_s1.. = vote shortlist); cosmetic only, no '
+                         'effect on the analysis')
     ap.add_argument('--out', type=str, default='', help='optional summary JSON path')
     return ap.parse_args()
 

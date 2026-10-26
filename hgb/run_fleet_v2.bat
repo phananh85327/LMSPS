@@ -7,7 +7,7 @@ REM  Fixed decisions (2026-10-17): --split-seed 1 (same split as the first
 REM  fleet in logs\Top K 4|6 and the HAN-improve downstream runs; EVERY
 REM  downstream consumer, incl. main_path.py, must use --split-seed 1 too),
 REM  --stage 150 (same budget as the first fleet; the paper uses 200).
-REM  --num_final 10 = paper's V = 2M for M = 4..6; C(10,4) = C(10,6) = 210
+REM  --num_final 10 (the paper's V = 2M holds for M = 5 only); C(10,4) = C(10,6) = 210
 REM  subsets, all scored once (--eval-exhaustive-cap), noise-free weights
 REM  (--eval-no-gumbel), deterministic kernels (--deterministic).
 REM  Seeds 1..30 are RUN seeds: distinct seeds = the stability test;

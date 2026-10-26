@@ -861,7 +861,8 @@ def parse_args(args=None):
     parser.add_argument("--num-neg-eval", type=int, default=99,
                         help="number of sampled negatives per positive edge for val/test ranking")
     parser.add_argument("--split-seed", type=int, default=0,
-                        help="fixed seed for the link-prediction edge split; independent of --seeds so search and final retrain share the same split")
+                        help="fixed seed for the link-prediction edge split; independent of --seeds so the search and every model "
+                             "trained on its paths (HAN, the retrain) share the same split. The fleets use 1")
     parser.add_argument("--tgt-ended-paths", action="store_true",
                         help="restrict search candidates to paths that start AND end at the target type, so every discovered path is usable as a HAN meta-path adjacency")
     parser.add_argument("--dedupe-reversed", action="store_true",

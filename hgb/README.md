@@ -56,6 +56,9 @@ the product side, `--user-tower embedding` on the user side).
 > means what a meta-path model will build from it (`--same-type-loops` restores them,
 > deviation 9; `../review/part9_han_evaluation.md`). Reproducing Fleet v2 needs the old
 > data, `--alpha-edges train-half`, `--wstep-kfold 0` and `--same-type-loops`.
+>
+> **The rerun is `run_fleet_v3.bat`** (Fleet v3, `logs/Fleet v3`): the Fleet v2 protocol on the
+> rebuilt data with the current defaults plus `--dropout 0.5` (review part 3). See "Run flow".
 
 Data: `amazon-meta.txt` -> `amazon_extract.py` -> `dat_generator.py` -> HGB-format `data/AMAZON`.
 Node types 0=P(roduct) 1=C(ategory) 2=U(ser).
@@ -86,33 +89,39 @@ What each step does:
 
 ### Search stage (meta-path discovery)
 
-Final protocol (2026-10-18): split-seed 1, stage 150, 36 reverse-deduplicated
-candidates, 15 warm-up epochs, 4 paths per step, exhaustive noise-free selection,
-deterministic kernels. Thirty seeds per `--ns`, then a fleet-level 1-SE re-selection.
+Final protocol (2026-10-18, plus the 2026-10-26 fixes): split-seed 1, stage 150, 36
+reverse-deduplicated candidates, 15 warm-up epochs, 4 paths per step, exhaustive noise-free
+selection, deterministic kernels, dropout 0.5. Thirty seeds per `--ns`, then the fleet-level
+re-selection (`run_fleet_v3.bat` runs all of it).
 
 ```bash
 python train_search.py --dataset AMAZON --task link_prediction --target-relation "U,P" \
     --num-hops 5 --ns 4 --num_final 10 --split-seed 1 --tgt-ended-paths --dedupe-reversed \
-    --warmup-epochs 15 --half-feats --stage 150 --deterministic --eval-no-gumbel \
+    --warmup-epochs 15 --dropout 0.5 --half-feats --stage 150 --deterministic --eval-no-gumbel \
     --eval-exhaustive-cap 1000 --seeds 1
-python reselect_fleet.py "logs/Fleet v2/final_ns4/*.json" --delta 0.010 --prefix amazon_lp_f4
+python reselect_fleet.py "logs/Fleet v3/final_ns4/search_*.json" --delta 0.010 --prefix amazon_lp_v3_f4
 ```
 
-`run_fleet_v2.bat final4 | final6 | reselect` runs the whole thing (30 seeds each,
-~1 h per run; logs and JSON records in `logs/Fleet v2/final_ns4|final_ns6`).
-The script activates `lmsps_env` itself; `execute.bat` is now only a wrapper for it.
+`run_fleet_v3.bat final4 | final6 | reselect` runs the whole thing (30 seeds each,
+~1 h per run; logs and JSON records in `logs/Fleet v3/final_ns4|final_ns6`).
+`run_fleet_v2.bat` keeps the Fleet v2 commands. Both scripts activate `lmsps_env`
+themselves; `execute.bat` is only a wrapper for `run_fleet_v2.bat`.
 
-**Run flow (2026-10-19)**
+**Run flow for the rerun (Fleet v3, 2026-10-26)**
 
 | step | command (from `hgb/`) | time | produces |
 |---|---|---|---|
-| 0 | `run_fleet_v2.bat pilot` | done 2026-10-17 | determinism PASS (two same-seed runs identical) |
-| 1 | `run_fleet_v2.bat final4` | 30 x ~1 h | `logs/Fleet v2/final_ns4/search_ns4_seed<s>.txt` + `.json` |
-| 2 | `run_fleet_v2.bat final6` | 30 x ~1 h | same for ns 6 |
-| 3 | `run_fleet_v2.bat reselect` | seconds | per ns: raw argmin table, 1-SE table (delta 0.010 and 0.005), cross-seed noise, path frequencies, consensus, `arch.py` entries (`amazon_lp_f4_consensus`, `_r1`, ...), `reselect_d010.json` |
-| 4 | paste into `arch.py` | - | consensus + every 1-SE set seen >= 2 times, with a provenance comment (split-seed 1, final schedule, delta) |
-| 5 | downstream, all with `--split-seed 1` | per arch | `main_path.py --arch <key>`; HAN repo `build_metapath_graphs.py` / `train_han.py` / metapath2vec per log #17 (consensus + >= 2x archs, 1 seed each; 3 seeds for the winner) |
-| 6 | report | - | raw distinct count, 1-SE distinct count + duplicate rate, delta sensitivity, path frequencies, schedule ablation (`logs/Fleet v2/ablation_old55` 55 cand. no warm-up / `ablation_ns8` ns-search 8 / `final_ns4`; `logs/Fleet v1` = same-seed fleets) |
+| 0 | rebuild `data/AMAZON` (see "Data" above) and check `audit.json` | minutes | the data every later step uses |
+| 1 | `run_fleet_v3.bat final4` | 30 x ~1 h | `logs/Fleet v3/final_ns4/search_ns4_seed<s>.txt` + `.json` (a run whose `.json` exists is skipped) |
+| 2 | `run_fleet_v3.bat final6` | 30 x ~1 h | same for ns 6 |
+| 3 | `run_fleet_v3.bat reselect` | seconds | per ns, saved as `reselect_d010.txt/.json` (and `_d005`): averaged scores and their one-SE sets, the vote with its shuffled-score null, path pick rates, and `arch.py` entries |
+| 4 | paste into `arch.py` | - | the `amazon_lp_v3_f<ns>_a<i>` entries (averaged one-SE sets, simplest first) with their provenance line; the vote's `_c` / `_s<i>` entries only for comparison |
+| 5 | downstream, all with `--split-seed 1` | per arch | HAN repo: the `_a<i>` sets plus the manual sets, graphs rebuilt from the new data (review part 9). `main_path.py` (the LMSPS model's own numbers) is optional |
+| 6 | report | - | the averaged ranking and its one-SE sets, score noise and rank agreement, the duplicate rate next to its null, pick rates (review part 5) |
+
+`run_fleet_v3.bat all` runs steps 1-3 and commits and pushes `logs/Fleet v3` after each fleet
+and after the re-selection (`run_fleet_v3.bat push` does it by hand). Fleet v2's own flow is in
+`run_fleet_v2.bat` and its header.
 
 Nothing from steps 1-2 is wasted if the rule changes: step 3 only reads the saved
 tables and can be re-run with any `--delta`.
@@ -203,7 +212,9 @@ delta-0.005 files (`reselect_d005.json`) are the sensitivity line in the report.
 selecting 4 trains the shared weights on 8-path mixtures and evaluates 4-subsets
 off-distribution (softmax weights 1/8 -> 1/4, dot-product scale doubles): the
 cross-seed noise of a set's score rose from 0.008 to 0.018 and the 1-SE rule stopped
-working (9 distinct / 10). Warm-up alone gives eliminated paths ~24 looks instead of 8.
+working (9 distinct / 10). With warm-up (and 36 instead of 55 candidates), a path eliminated
+in Fleet v2 had been sampled in 12 epochs on average for ns 4 and 18 for ns 6 (medians 9.5 and
+14), against about 8 before.
 
 Notes:
 - `--stage` IS the search budget -- there is deliberately NO early stopping here.
@@ -216,7 +227,7 @@ Notes:
   still falling at epoch 149 (means 0.130 / 0.125 for ns 4 / 6), so 150 is a floor;
   the paper uses 200 (convergence between 100 and 180 in its Table 11).
 - `--num_final` must be smaller than the candidate count (55 target-ended paths
-  at 5 hops) or shrinking is inert.
+  at 5 hops, 36 with `--dedupe-reversed`) or shrinking is inert.
 - **Reproducible search (recommended, all opt-in).** The 60 same-seed runs in
   `logs/Top K 4|6` were bit-identical for 33-60 epochs, then drifted by 1e-4 in a
   loss (GPU float nondeterminism) and ended in 16/30 resp. 26/30 different path
@@ -230,7 +241,8 @@ Notes:
   strength softmax(alpha/tau) (one weighting for all node batches);
   `--eval-exhaustive-cap` scores every subset of the final pool once when
   C(num_final, ns) is small (C(10,4) = C(10,6) = 210, C(10,5) = 252 ~ the cost of
-  `--repeat 200`). `--num_final 10` is the paper's V = 2M for M = 4-6. With
+  `--repeat 200`). `--num_final 10` is the paper's V = 2M only for M = 5 (2.5M for
+  M = 4, 1.7M for M = 6). With
   `--num_final 20 --repeat 60`, 60 draws cover 0.4 % of the 15,504 possible
   5-sets -- the selection is then essentially random.
   Every search writes a JSON record via `--search-json` (default
@@ -244,6 +256,9 @@ Notes:
   report path overlap across search runs, not performance tables per search seed.
 
 ### Retraining stage (the LMSPS table row)
+
+Optional: the HAN flow does not use it. It trains the LMSPS model on a found set, for the
+LMSPS model's own numbers and `lmsps_emb.pt`.
 
 ```bash
 python main_path.py --dataset AMAZON --task link_prediction --target-relation "U,P" \
@@ -297,7 +312,8 @@ the results are reported as "LMSPS":
    warm-up (now available as `--warmup-epochs`, off by default), candidate pool
    ranked by raw alpha rather than Gumbel strength, sampling evaluation draws
    uniformly from the top-V instead of strength-weighted, single linear
-   projection per path instead of a 2-layer MLP.
+   projection per path instead of a 2-layer MLP, initialised uniform(-0.5, 0.5)
+   instead of Xavier (about 6x wider for these matrix sizes; review part 3).
 6. **`--ns-search` (opt-in).** The paper samples the same M paths per step that
    it selects at the end. With M = 4 of K = 55 every eliminated path got only
    ~8 looks (2-4 for early cuts) in fleet v2, so `--ns-search S` samples S paths
@@ -329,7 +345,8 @@ the results are reported as "LMSPS":
    The default now matches them, and the paper's Eq. 1 has no self-loops either;
    `--same-type-loops` is for reproducing Fleet v2.
 
-**Search stability (fleet v2, seeds 21-30, ns 4, 2026-10-18).** Same seed ->
+**Search stability (fleet v2, seeds 21-30, ns 4, 2026-10-18; old schedule: 55 candidates
+without `--dedupe-reversed`, no warm-up, so it includes PUPUPP and PUPCCP).** Same seed ->
 identical run. Different seeds -> different 4-sets, but PPUPUP in 9/10,
 PUPUPP and PUPCCP 6/10, PUPUP 5/10 (consensus PPUPUP PUPUPP PUPCCP PUPUP),
 pairwise overlap 1.8/4. Causes: redundant candidates (2-13 sets tie within
@@ -337,9 +354,10 @@ pairwise overlap 1.8/4. Causes: redundant candidates (2-13 sets tie within
 sharing. Report path frequencies + consensus + downstream equivalence, not the
 exact set. Details: chat log #18, Addendum 4.
 
-**Split-seed rule:** search and retrain MUST use the same `--split-seed`. The
-final path set is chosen by validation BPR on the search split; retraining on a
-different split can put those validation edges into the test set. Record the
-split seed, stage, ns and num_final next to every `arch.py` entry.
+**Split-seed rule:** the search and every model trained on its paths (HAN, metapath2vec,
+the retrain) MUST use the same `--split-seed`. The final path set is chosen by validation BPR
+on the search split; training on a different split can put those validation edges into the
+test set. `reselect_fleet.py` prints a provenance line (split seed, stage, ns, num_final and
+the search flags, read from the runs) above its `arch.py` entries: paste it with them.
 
 Full review with file/line references: `chat/2026-10-16_18_lmsps-paper-fidelity-review.md`.

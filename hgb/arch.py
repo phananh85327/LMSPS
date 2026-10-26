@@ -44,6 +44,8 @@ archs = {
     # customer ATVPDKIKX0DER on 61% of products). Re-run the search on the rebuilt data
     # before using them -- review/part1_data_pipeline.md.
 
+    # every path of the 13 shortlist sets below, once: building HAN graphs for this key
+    # covers all of them (graph files are per path)
     "amazon_lp_unique_strings": [
         ['PCCPUP', 'PCPPUP', 'PCPUP', 'PCPUPP', 'PPCPUP', 'PPPPUP', 'PPPUP', 'PPPUPP', 'PPUP', 'PPUPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
     # ns 4 shortlist (6 sets); _c is also the most frequent pick
@@ -76,3 +78,9 @@ archs = {
     "amazon_lp_f6_s7": [         # x2
         ['PPPPUP', 'PPPUP', 'PPPUPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
 }
+
+# reselect_fleet.py names the vote's consensus <prefix>_c, and the README and the HAN repo
+# use those names; the Fleet v2 entries above were pasted with the consensus as a
+# numbered set. Same list objects, so either key gives the same paths.
+archs["amazon_lp_f4_c"] = archs["amazon_lp_f4_s1"]
+archs["amazon_lp_f6_c"] = archs["amazon_lp_f6_s4"]

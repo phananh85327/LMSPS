@@ -281,6 +281,30 @@ Downstream consumers of the discovered paths (HAN, metapath2vec, GAT baselines,
 serving, offline re-evaluation) live in the standalone HAN repo
 (`HAN-improve` / `han-recsys`) -- see its README and METAPATH_CONTRACT.md.
 
+### Reproducibility and tests
+
+- **What a search record holds.** Besides the flags, the alpha ranking and every scored
+  set, each `--search-json` record stores the data it ran on (`data`: `meta.json` from
+  `dat_generator.py`, node counts, and a fingerprint of the training edges, which changes
+  with the data and with the split) and the environment (`env`: Python, torch, dgl, numpy,
+  device). `reselect_fleet.py` prints the fingerprint in its provenance line and warns when
+  one fleet mixes data versions, e.g. seeds run before and after a data rebuild.
+- **Same seed, same run.** With `--deterministic`, two runs of one seed must be identical.
+  `run_fleet_v3.bat pilot` checks it on your machine (two full runs of seed 1, compared by
+  `compare_search_records.py`); on the CPU it holds for the current code (review part 7).
+- **Tests** need the training environment (`requirements.txt`) and run as scripts or with
+  pytest (`python -m pytest hgb/tests`):
+  - `tests/test_amazon_extract.py`: the extraction and `dat_generator.py`
+  - `tests/test_link_split.py`: split, negatives, leakage guards, fold features, plain
+    relations, data provenance
+  - `tests/test_reselect_fleet.py`: fleet statistics, `arch.py` entries, the pilot check
+    (standard library only)
+- `sparse_tools` is a gitlink without a URL, so a fresh clone has an empty folder. Only node
+  classification and `ogbn/` need it (`requirements.txt` says how to build it); the
+  link-prediction flow stubs it out.
+- References to `chat/` notes and "chat log" numbers point to the author's local notes; that
+  folder is git-ignored.
+
 ### Deviations from the paper (Li et al., NeurIPS 2024)
 
 The search (Eq. 1-5), sampling evaluation (Eq. 6) and target-net (Eq. 7) are the

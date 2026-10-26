@@ -8,6 +8,10 @@ pass the two node-type ids to relate; the dataset-specific wiring (which adjacen
 dict keys to patch before meta-path propagation) lives in train_search.py/main_path.py.
 """
 
+import hashlib
+import json
+import os
+
 import numpy as np
 import scipy.sparse as sp
 import torch
@@ -122,6 +126,28 @@ def build_link_split(dl, src_type, dst_type, seed=0, val_ratio=0.1, test_ratio=0
         'full_adj_src2dst': full_adj_src2dst,
         'train_adj_src2dst': train_adj_src2dst,
     }
+
+
+def edges_fingerprint(edges):
+    """Order-free short hash of an edge set [N, 2]. Over the training edges it changes
+    with the data and with the split, so search records can be told apart by it."""
+    e = np.unique(np.asarray(edges, dtype=np.int64).reshape(-1, 2), axis=0)
+    return hashlib.blake2b(e.tobytes(), digest_size=8).hexdigest()
+
+
+def data_provenance(data_dir, dl, link_split):
+    """What a search ran on, for its JSON record: dat_generator.py's meta.json (how the
+    data was built; None for data built before it existed), node counts, the number of
+    target edges and a fingerprint of the training edges."""
+    meta_file = os.path.join(data_dir, 'meta.json')
+    meta = None
+    if os.path.isfile(meta_file):
+        with open(meta_file, encoding='utf-8') as f:
+            meta = json.load(f)
+    return {'dir': data_dir, 'meta': meta,
+            'node_counts': {int(t): int(c) for t, c in dl.nodes['count'].items()},
+            'num_target_edges': int(link_split['full_adj_src2dst'].nnz),
+            'train_edges_hash': edges_fingerprint(link_split['train_edges'])}
 
 
 def remove_target_edges(g, edges, target_relation):

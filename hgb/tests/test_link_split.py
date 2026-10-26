@@ -173,6 +173,30 @@ def test_amazon_same_type_loops():
             loops = {(i, i) for i in range(g.num_nodes(nt))}
             assert set(zip(*[x.tolist() for x in looped.edges(etype=et)])) == plain | loops, et
 
+
+def test_edges_fingerprint_and_data_provenance():
+    """Search records carry a fingerprint of the training edges: order-free, different for
+    another split, and the data's meta.json (dat_generator.py) comes along."""
+    import argparse as _ap
+    import utils
+    from link_data import data_provenance, edges_fingerprint
+    e = np.array([[0, 1], [2, 3], [4, 5]])
+    assert edges_fingerprint(e) == edges_fingerprint(e[::-1])
+    assert edges_fingerprint(e) != edges_fingerprint(np.array([[0, 1], [2, 3], [4, 6]]))
+    with tempfile.TemporaryDirectory() as tmp:
+        _load_amazon(tmp)
+        prov = {}
+        for seed in (1, 2):
+            args = _ap.Namespace(root=tmp, dataset='AMAZON', task='link_prediction', target_relation='U,P',
+                                 split_seed=seed, num_neg_eval=20, edge_mask_ratio=0)
+            _, _, _, _, dl, *_, link_split = utils.load_dataset(args)
+            prov[seed] = data_provenance(os.path.join(tmp, 'AMAZON'), dl, link_split)
+            assert prov[seed]['train_edges_hash'] == edges_fingerprint(link_split['train_edges'])
+        assert prov[1]['train_edges_hash'] != prov[2]['train_edges_hash']
+        assert prov[1]['meta'] and prov[1]['meta']['counts'] == prov[2]['meta']['counts']
+        counts = prov[1]['meta']['counts']                    # dat_generator's own counts
+        assert prov[1]['node_counts'] == {0: counts['products'], 1: counts['categories'], 2: counts['users']}
+
 def test_remove_target_edges():
     """--alpha-edges heldout-half: the alpha half must leave both directions of the graph
     (the split's int32 edge arrays included)."""

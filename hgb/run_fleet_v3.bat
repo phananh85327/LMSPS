@@ -12,7 +12,10 @@ REM  A run whose JSON record already exists is skipped, so the script can be
 REM  relaunched after an interruption (a run cut off mid-way has no JSON yet
 REM  and starts again).
 REM
-REM  Usage:  run_fleet_v3.bat final4 | final6 | reselect | push | all
+REM  Usage:  run_fleet_v3.bat pilot | final4 | final6 | reselect | push | all
+REM    pilot            optional, once before the fleets (~2 h): seed 1 twice with
+REM                     --deterministic; compare_search_records.py must print
+REM                     IDENTICAL (same seed -> same run on this machine)
 REM    final4 / final6  30 searches each, seeds 1-30 (about an hour per run on
 REM                     the old data; the rebuilt data is smaller)
 REM    reselect         reselect_fleet.py per ns, delta 0.010 and 0.005 (the
@@ -26,9 +29,11 @@ REM ==========================================================================
 setlocal
 cd /d "%~dp0"
 REM --- conda: in a plain cmd on this machine `python` is the Windows-Store stub,
-REM     so activate lmsps_env the same way run_fleet_v2.bat does
+REM     so activate lmsps_env the same way run_fleet_v2.bat does. Another machine:
+REM     set CONDA_ROOT to its conda folder before calling this script
+if not defined CONDA_ROOT set CONDA_ROOT=E:\miniconda3
 if /I not "%CONDA_DEFAULT_ENV%"=="lmsps_env" (
-  call E:\miniconda3\Scripts\activate.bat
+  call "%CONDA_ROOT%\Scripts\activate.bat"
   call conda activate lmsps_env
 )
 python -c "import sys; print('python:', sys.executable)"
@@ -37,14 +42,22 @@ set FINAL=--dedupe-reversed --warmup-epochs 15 --dropout 0.5
 set OUT=logs\Fleet v3
 if not exist "%OUT%\final_ns4" mkdir "%OUT%\final_ns4"
 if not exist "%OUT%\final_ns6" mkdir "%OUT%\final_ns6"
+if not exist "%OUT%\pilot" mkdir "%OUT%\pilot"
 
 if "%1"=="" goto usage
+if /I "%1"=="pilot" goto pilot
 if /I "%1"=="final4" goto final4
 if /I "%1"=="final6" goto final6
 if /I "%1"=="reselect" goto reselect
 if /I "%1"=="push" goto push
 if /I "%1"=="all" goto all
 goto usage
+
+:pilot
+for %%p in (a b) do python train_search.py %COMMON% %FINAL% --ns 4 --search-json "%OUT%\pilot\pilot_%%p.json" --seeds 1 > "%OUT%\pilot\pilot_%%p.txt" 2>&1
+python compare_search_records.py "%OUT%\pilot\pilot_a.json" "%OUT%\pilot\pilot_b.json"
+findstr /C:"deterministic implementation" "%OUT%\pilot\pilot_*.txt" && echo   a non-deterministic op ran: see the lines above
+goto end
 
 :final4
 for /L %%s in (1,1,30) do call :search 4 %%s
@@ -93,6 +106,6 @@ call "%~f0" push
 goto end
 
 :usage
-echo usage: %~nx0 final4 ^| final6 ^| reselect ^| push ^| all
+echo usage: %~nx0 pilot ^| final4 ^| final6 ^| reselect ^| push ^| all
 :end
 endlocal

@@ -18,7 +18,7 @@ import tempfile
 
 HGB = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, HGB)
-from reselect_fleet import averaged_scores, load_runs, null_distinct, reselect, score_noise  # noqa: E402
+from reselect_fleet import averaged_scores, load_runs, null_distinct, provenance, reselect, score_noise  # noqa: E402
 
 PATHS = ['P%d' % i for i in range(12)]
 
@@ -114,6 +114,44 @@ def test_arch_entries_and_provenance():
             assert summary['averaged_one_se_keys'] == [f'k_a{i}' for i in range(1, len(summary['averaged_one_se']) + 1)]
             for key, paths in zip(summary['averaged_one_se_keys'], summary['averaged_one_se']):
                 assert f'"{key}": [\n        [{", ".join(repr(p) for p in paths)}], []],' in text, key
+
+
+def test_mixed_data_versions_are_flagged():
+    """Runs searched on different data (or splits) carry different training-edge
+    fingerprints: the provenance line and a warning say so; one version is named."""
+    with tempfile.TemporaryDirectory() as tmp:
+        _fleet(tmp, n_runs=6)
+        for i, f in enumerate(sorted(glob.glob(os.path.join(tmp, 'search_seed*.json')))):
+            rec = json.load(open(f, encoding='utf-8'))
+            rec['data'] = {'train_edges_hash': 'aaaa' if i < 4 else 'bbbb'}
+            json.dump(rec, open(f, 'w', encoding='utf-8'))
+        runs = load_runs([os.path.join(tmp, 'search_seed*.json')])
+        assert 'MIXED DATA (2 versions)' in provenance(runs)
+        assert 'data aaaa' in provenance(runs[:4])
+        text = subprocess.run([sys.executable, os.path.join(HGB, 'reselect_fleet.py'),
+                               os.path.join(tmp, 'search_seed*.json'), '--null-draws', '0'],
+                              check=True, capture_output=True, text=True).stdout
+        assert 'WARNING: the runs were searched on 2 different data / split versions' in text
+
+
+def test_compare_search_records():
+    """The determinism pilot's check: identical records pass, any change in alpha, the pool
+    or a scored set is reported by field (exit code 1)."""
+    from compare_search_records import compare, main
+    rec = {'candidates': ['PUP', 'PCP'], 'alpha': {'PUP': 1.0, 'PCP': 0.5}, 'final_pool': ['PUP'],
+           'eval_table': [{'paths': ['PUP'], 'val_bpr': 0.5}], 'paths': [['PUP'], []], 'env': {'device': 'x'}}
+    other = json.loads(json.dumps(rec))
+    other['env'] = {'device': 'y'}                       # provenance fields do not count
+    assert compare(rec, other) == []
+    other['eval_table'][0]['val_bpr'] = 0.5000001
+    other['alpha']['PCP'] = 0.6
+    assert compare(rec, other) == ['alpha', 'eval_table']
+    with tempfile.TemporaryDirectory() as tmp:
+        a, b = os.path.join(tmp, 'a.json'), os.path.join(tmp, 'b.json')
+        json.dump(rec, open(a, 'w')); json.dump(rec, open(b, 'w'))
+        assert main(a, b) == 0
+        json.dump(other, open(b, 'w'))
+        assert main(a, b) == 1
 
 
 def test_vote_reproduces_the_committed_fleet_v2_files():

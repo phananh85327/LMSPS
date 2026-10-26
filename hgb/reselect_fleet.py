@@ -74,8 +74,15 @@ def load_runs(patterns):
             'dedupe': (rec.get('args') or {}).get('dedupe_reversed'),
             'final_pool': rec.get('final_pool'),
             'args': rec.get('args') or {},
+            'data_hash': (rec.get('data') or {}).get('train_edges_hash'),
         })
     return runs
+
+
+def data_versions(runs):
+    """Distinct training-edge fingerprints among the runs (None = a record written
+    before train_search.py stored one)."""
+    return sorted({r['data_hash'] for r in runs}, key=str)
 
 
 def provenance(runs):
@@ -97,6 +104,10 @@ def provenance(runs):
         if key == 'same_type_loops' and not str(v).startswith('MIXED'):
             v = 'P-P/C-C self-loops' if v else 'plain relations'
         parts.append(fmt.format(v))
+    versions = data_versions(runs)
+    if versions != [None]:
+        parts.append(f'data {versions[0]}' if len(versions) == 1 else
+                     f'MIXED DATA ({len(versions)} versions)')
     folders = sorted({os.path.dirname(r['file']) for r in runs})
     return f'{", ".join(parts)}; {len(runs)} runs in {" + ".join(folders)}'
 
@@ -229,6 +240,10 @@ def main(args):
     print(f'== {len(runs)} runs; (dedupe, warmup, ns_search) configs: {dict(cfg)}')
     if len(cfg) > 1:
         print('WARNING: mixed configurations -- frequencies and noise are only meaningful within one schedule')
+    versions = data_versions(runs)
+    if len(versions) > 1:
+        print(f'WARNING: the runs were searched on {len(versions)} different data / split versions '
+              f'(training-edge fingerprints {versions}; None = record without one): compare only runs on one')
 
     noise, n_pairs = cross_seed_noise(runs)
     if noise is not None:

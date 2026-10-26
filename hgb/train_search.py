@@ -1,6 +1,7 @@
 import os
 import json
 import math
+import platform
 import time
 import uuid
 import argparse
@@ -17,7 +18,7 @@ from torch_sparse import remove_diag, set_diag
 
 from model_search import *
 from utils import *
-from link_data import remove_target_edges
+from link_data import remove_target_edges, data_provenance
 try:
     from sparse_tools import SparseAdjList
 except ImportError as _e:  # compiled extension (python39 build in ../sparse_tools); unused by link prediction
@@ -313,6 +314,11 @@ def main_link_prediction(args, g, dl, link_split):
             'tie_delta': args.report_delta,
             'tie_sets': [{'paths': [keys[i] for i in idx], 'gap': gap} for idx, gap in tie_sets],
             'avg_epoch_time_s': sum(train_times) / len(train_times),
+            # what the run used: reselect_fleet.py warns when a fleet mixes data versions
+            'data': data_provenance(os.path.join(args.root, args.dataset), dl, link_split),
+            'env': {'python': platform.python_version(), 'torch': torch.__version__,
+                    'dgl': dgl.__version__, 'numpy': np.__version__,
+                    'device': 'cpu' if args.cpu else torch.cuda.get_device_name(args.gpu)},
         }
         with open(save_path, 'w', encoding='utf-8') as f:
             json.dump(record, f, indent=1)

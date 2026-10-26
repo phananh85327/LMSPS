@@ -55,7 +55,7 @@ for those changes.
 
 ## What changed
 
-Not committed (pending your approval):
+Committed in `c85716f`:
 - `hgb/run_fleet_v3.bat`: new.
 - `hgb/execute.bat`: no argument = reselect.
 - `hgb/reselect_fleet.py`:

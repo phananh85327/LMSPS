@@ -50,9 +50,9 @@ part 3, and on HAN training to part 9.
 |---|---|---|---|
 | S1 | Is the split strict? | Disjoint, complete, deterministic 80/10/10 split; evaluation negatives avoid every positive; training negatives avoid only train positives; U-P **and** P-U swapped to train edges; test edges never touch the search; one `--split-seed`, which HAN must reuse (part 9) | **OK.** Tests added |
 | S2a | Self-inclusion biases **alpha** | See below | **Must fix: fixed** (`--alpha-edges val`) |
-| S2b | Self-inclusion in the **weights** (search, and HAN downstream) | Same mechanism: the model trains on features that contain each target edge and is tested on features that don't | **Decide in part 3** (search) **and part 9** (HAN). Options below |
-| S3 | Users the weight step never trains | The user tower is only in `optimizer_w`, so a user whose train edges all landed in the alpha half keeps its random init. Full pre-fix data: 3.1% of users. k3: 13% of users, 14–15% of alpha-step edges | **Fixed by S2a.** Left: cold-start users with no train edge (0.9% of k3 val edges); HAN's evaluation should report them separately (part 9) |
-| S4 | Uniform evaluation negatives are easy | Training popularity alone, no learning: test HR@10 0.316 (k5), 0.415 (k3), 0.498 (k2) vs 0.10 for random. Val positives have 1.8–6.1× the training degree of their negatives | **Part 9:** HAN's results need a popularity baseline next to every table |
+| S2b | Self-inclusion in the **weights** (search, and HAN downstream) | Same mechanism: the model trains on features that contain each target edge and is tested on features that don't | Search: **fixed in part 3** (`--wstep-kfold 4`). HAN: parked with the HAN repo review (part 9) |
+| S3 | Users the weight step never trains | The user tower is only in `optimizer_w`, so a user whose train edges all landed in the alpha half keeps its random init. Full pre-fix data: 3.1% of users. k3: 13% of users, 14–15% of alpha-step edges | **Fixed by S2a.** Left: cold-start users with no train edge (0.9% of k3 val edges); HAN's evaluation should report them separately (parked with the HAN repo review) |
+| S4 | Uniform evaluation negatives are easy | Training popularity alone, no learning: test HR@10 0.316 (k5), 0.415 (k3), 0.498 (k2) vs 0.10 for random. Val positives have 1.8–6.1× the training degree of their negatives | HAN's results need a popularity baseline next to every table (parked with the HAN repo review, part 9) |
 | S5 | `TrainEdgeSampler` draws with replacement | About 63% of edges per epoch, all edges over the run | Ignore |
 | S6 | `sample_negs` loops forever if a user has fewer than `k` non-positive items | Needs `k > num_dst - degree`: impossible with 99 negatives and tens of thousands of products | Ignore |
 | S7 | `--cpu` crashes | Unguarded `torch.cuda.synchronize()`, 4 calls in `train_search.py` | **Fixed.** (`main_path.py` has the same 4 calls; left as is, it is out of the flow) |
@@ -164,10 +164,11 @@ to rank. Options, cheapest first:
    train graph.
 3. **Leave as is**, and say so when reporting.
 
-Part 3 decides this for the search, part 9 for HAN.
+Part 3 fixed this for the search; for HAN it is parked with the HAN repo review (part 9).
 
 ## What changed
 
+Committed in `c49b776`:
 - `train_search.py`: `--alpha-edges {val,heldout-half,train-half}`, default `val`.
   - `val`: weights on all train edges, alpha on the val edges. Alpha negatives avoid train and val
     positives. Each epoch has about twice as many steps as before (all train edges instead of

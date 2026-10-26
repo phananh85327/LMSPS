@@ -53,8 +53,8 @@ available. With the part 2/3 fixes, the runs on the small graph agree for real.
 | R7 | Which rule picks best? | Out of sample: see the table below | Rank by averaged scores; HAN decides among its one-SE sets |
 | R8 | The "consensus" is the most frequent paths assembled, not necessarily any run's pick | ns 6: picked by only 2 runs (the README notes it) | Ignore; superseded by the averaged one-SE sets |
 | R9 | README: "a vote by fleet-mean marginal effect … is worse" | If judged by the duplicate rate, the comparison is circular: a vote maximises duplicates | Document; compare rules out of sample instead |
-| R10 | Key naming in `arch.py` / README (D1) | — | Part 8 |
-| R11 | The `*.json` glob also matches `reselect_d0xx.json` (D6) | Skipped with a warning | Part 7 |
+| R10 | Key naming in `arch.py` / README (D1) | — | Fixed in part 8 (aliases; `_a<i>` entries for the averaged sets) |
+| R11 | The `*.json` glob also matches `reselect_d0xx.json` (D6) | Skipped with a warning | Fixed in part 8 (`run_fleet_v3.bat` reads `search_*.json`) |
 
 ### R1: what the duplicate rate measures
 
@@ -109,7 +109,7 @@ full rerun decides.
 
 ## What changed
 
-Not committed yet (pending your approval):
+Committed in `a04ab60`:
 - `hgb/reselect_fleet.py`:
   - new: `score_noise`, `averaged_scores`, `null_distinct`, `spearman`
   - new outputs: averaged scores with a one-SE rule, the per-set noise and agreement, the

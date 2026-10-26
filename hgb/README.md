@@ -111,12 +111,13 @@ themselves; `execute.bat` is only a wrapper for `run_fleet_v2.bat`.
 
 | step | command (from `hgb/`) | time | produces |
 |---|---|---|---|
-| 0 | rebuild `data/AMAZON` (see "Data" above) and check `audit.json` | minutes | the data every later step uses |
+| 0 | move the old `../data/AMAZON` aside, rebuild it (see "Data" above) and check `audit.json` | minutes | the data every later step uses (`dat_generator.py` overwrites its output folder) |
+| 0b | `run_fleet_v3.bat pilot` (optional) | ~2 h | `logs/Fleet v3/pilot`: same seed twice, must print `IDENTICAL` |
 | 1 | `run_fleet_v3.bat final4` | 30 x ~1 h | `logs/Fleet v3/final_ns4/search_ns4_seed<s>.txt` + `.json` (a run whose `.json` exists is skipped) |
 | 2 | `run_fleet_v3.bat final6` | 30 x ~1 h | same for ns 6 |
 | 3 | `run_fleet_v3.bat reselect` | seconds | per ns, saved as `reselect_d010.txt/.json` (and `_d005`): averaged scores and their one-SE sets, the vote with its shuffled-score null, path pick rates, and `arch.py` entries |
 | 4 | paste into `arch.py` | - | the `amazon_lp_v3_f<ns>_a<i>` entries (averaged one-SE sets, simplest first) with their provenance line; the vote's `_c` / `_s<i>` entries only for comparison |
-| 5 | downstream, all with `--split-seed 1` | per arch | HAN repo: the `_a<i>` sets plus the manual sets, graphs rebuilt from the new data (review part 9). `main_path.py` (the LMSPS model's own numbers) is optional |
+| 5 | downstream, all with `--split-seed 1` | per arch | HAN repo: the `_a<i>` sets plus the manual sets (`../review/manual_metapath_sets.md`), on the same rebuilt data with graphs rebuilt from it (review part 9). `main_path.py` (the LMSPS model's own numbers) is optional |
 | 6 | report | - | the averaged ranking and its one-SE sets, score noise and rank agreement, the duplicate rate next to its null, pick rates (review part 5) |
 
 `run_fleet_v3.bat all` runs steps 1-3 and commits and pushes `logs/Fleet v3` after each fleet
@@ -299,9 +300,9 @@ serving, offline re-evaluation) live in the standalone HAN repo
     relations, data provenance
   - `tests/test_reselect_fleet.py`: fleet statistics, `arch.py` entries, the pilot check
     (standard library only)
-- `sparse_tools` is a gitlink without a URL, so a fresh clone has an empty folder. Only node
-  classification and `ogbn/` need it (`requirements.txt` says how to build it); the
-  link-prediction flow stubs it out.
+- `sparse_tools` is a git submodule (`Yangxc13/sparse_tools`, the commit the authors' README
+  clones): `git submodule update --init sparse_tools`, then build it as `requirements.txt` says.
+  Only node classification and `ogbn/` need it; the link-prediction flow stubs it out.
 - References to `chat/` notes and "chat log" numbers point to the author's local notes; that
   folder is git-ignored.
 

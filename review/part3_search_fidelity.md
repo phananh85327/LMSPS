@@ -23,8 +23,8 @@ to face:
   flag; no code change. With both fixes the search overfits least and its picks agree most
   across seeds.
 
-Two README numbers are wrong (part 8). The paper's Table 4 is exactly your flow (HAN retrained
-with searched paths), which part 9 should reproduce.
+Two README numbers were wrong (fixed in part 8). The paper's Table 4 is exactly your flow (HAN
+retrained with searched paths), which the HAN evaluation should reproduce.
 
 ## How it was checked
 
@@ -44,7 +44,7 @@ with searched paths), which part 9 should reproduce.
 
 | # | Item | Evidence | Verdict |
 |---|---|---|---|
-| F1 | Supernet: a projection per path, Gumbel-softmax over the sampled paths (Eq. 2, 4), PReLU | Identical to upstream. Link prediction only drops the classifier head, so the product embedding is `dropout(PReLU(Σ w·XW))`. Two inherited differences from the paper (App. B.4): one linear map per path instead of a two-layer MLP, and `uniform(-0.5, 0.5)` initialisation instead of Xavier (about 6× wider for these matrix sizes) | OK. The README lists the first; part 8 adds the second |
+| F1 | Supernet: a projection per path, Gumbel-softmax over the sampled paths (Eq. 2, 4), PReLU | Identical to upstream. Link prediction only drops the classifier head, so the product embedding is `dropout(PReLU(Σ w·XW))`. Two inherited differences from the paper (App. B.4): one linear map per path instead of a two-layer MLP, and `uniform(-0.5, 0.5)` initialisation instead of Xavier (about 6× wider for these matrix sizes) | OK. The README lists both (the second since part 8) |
 | F2 | Schedule | Pool shrinks linearly to V (Eq. 3), temperature 8 → 4, warm-up of 20 / 200 epochs available as `--warmup-epochs` (App. B.4). One path sample per **epoch**, as in App. E.4 and upstream's OGBN-MAG code. The paper ranks the pool by the noisy strength q_k (Eq. 3); the code by alpha, without noise | OK. Differences already in the README (deviation 5) |
 | F3 | Bi-level step | Algorithm 1 lines 13–14, Eq. 5 and App. A.3: weights on the training loss, alpha on the validation loss, first-order. Same alternation as upstream's `train_search_new`; alpha is not in the weight optimizer; gradients are zeroed correctly | OK |
 | F4 | Final selection | Paper (Eq. 6): 200 subsets drawn in proportion to strength. Upstream: 200 uniform draws, with Gumbel noise. Fork: every one of the 210 subsets scored once, without noise | OK; documented |
@@ -52,14 +52,14 @@ with searched paths), which part 9 should reproduce.
 | F6 | Loss and scoring | BPR averaged over every positive–negative pair; dot products scored in chunks | OK |
 | F7 | `--all_path` in upstream's README commands | Defined but never read, in upstream as well | Ignore |
 | F8 | The search's weights still train on edges inside their own features (part 2, S2b) | Weights trained with each edge inside its own features learn a self-signal that validation edges lack, so user paths look worse than they are. Fold-by-fold features on k3: PUP alpha rank 19.2 → 9.3; seeds' selected sets share 2.5 of 4 paths instead of 1.9, their pools 6.9 of 10 instead of 5.4 | **Should fix: fixed** (`--wstep-kfold 4`, default; `0` = old behaviour) |
-| F9 | The supernet overfits | Training BPR falls to 0.03 while validation BPR is best at epoch 54 (0.49) and ends at 0.66, the weights the final sets are scored with. Link prediction adds a free 512-dim vector per user; the paper uses weight decay 0 and upstream dropout 0. `--dropout 0.5` on k3: rise +0.17 → +0.07, final 0.66 → 0.58, pools 6.6 of 10 shared instead of 5.4 | **Recommended:** add `--dropout 0.5` to the rerun's flags; check the validation curve on the full data |
+| F9 | The supernet overfits | Training BPR falls to 0.03 while validation BPR is best at epoch 54 (0.49) and ends at 0.66, the weights the final sets are scored with. Link prediction adds a free 512-dim vector per user; the paper uses weight decay 0 and upstream dropout 0. `--dropout 0.5` on k3: rise +0.17 → +0.07, final 0.66 → 0.58, pools 6.6 of 10 shared instead of 5.4 | **Recommended:** `--dropout 0.5`, now in `run_fleet_v3.bat` (part 8); check the validation curve on the full data |
 | F10 | `--alpha-edges val` doubles the weight steps per epoch | k3: alpha spread 2.4 → 4.2. On the rebuilt full data (about 1 M edges) that is still about 80 steps per epoch, fewer than Fleet v2's 105 | No action |
 | F11 | Adam keeps moving an unsampled path's alpha | At most about 0.01 (10 × the learning rate), against a 0.10 gap at the pool boundary in Fleet v2 | Ignore |
 | F12 | Products' own features are not a candidate (target-ended paths only) | HAN always has them, so the search could overvalue self-heavy paths. It doesn't: PP, PPP, PPPP never reached a final pool in Fleet v2 or on k3 | Ignore; document |
 | F13 | The reverse-pair representative is the alphabetically smaller key (L10) | HAN's graphs are identical for both; only the search's feature differs | Ignore; document |
 | F14 | Set scores weight paths by softmax(alpha / 4) | In Fleet v2 the selected paths got 0.12–0.40 of the weight, so a set's score is not an equal-weight score. Same as the paper (Eq. 4 weights inside Eq. 6's evaluation) | Part 4 |
-| F15 | README: "warm-up gives eliminated paths ~24 looks" | Measured in the final fleets: 12 on average for ns 4, 18 for ns 6 | Part 8: correct the number |
-| F16 | README: "`--num_final 10` is the paper's V = 2M for M = 4–6" | V = 2M (App. C.1) gives 8, 10 and 12 for M = 4, 5, 6 | Part 8: reword |
+| F15 | README: "warm-up gives eliminated paths ~24 looks" | Measured in the final fleets: 12 on average for ns 4, 18 for ns 6 | Fixed in part 8 |
+| F16 | README: "`--num_final 10` is the paper's V = 2M for M = 4–6" | V = 2M (App. C.1) gives 8, 10 and 12 for M = 4, 5, 6 | Fixed in part 8 |
 
 **Paper claims in the README and code, now all checked:** Eq. 1–7, Algorithm 1, the 20-epoch
 warm-up (App. B.4), "skip progressive sampling when K ≤ 2M" (App. C.1), convergence within
@@ -163,7 +163,7 @@ regularise the user vectors further (weight decay on the user tower, or smaller 
 
 ## What changed
 
-Not committed yet (pending your approval):
+Committed in `35f0b01`:
 - `hgb/utils.py`: `fold_user_path_feats()`; `train_search_lp(..., fold_stack=)`.
 - `hgb/link_data.py`: `TrainEdgeSampler(..., fold_of=)` also returns each sampled edge's fold,
   with the same random stream.
@@ -171,4 +171,4 @@ Not committed yet (pending your approval):
 - `hgb/tests/test_link_split.py`: `test_sampler_fold_ids`, `test_fold_user_path_feats` (9 tests).
 - `hgb/README.md` (deviation 8, the rebuild note) and `hgb/run_fleet_v2.bat` (header note).
 
-Recommended for the rerun's flags, no code change: `--dropout 0.5`.
+Recommended for the rerun's flags, no code change: `--dropout 0.5` (in `run_fleet_v3.bat` since part 8).

@@ -48,7 +48,7 @@ That is one HAN seed per set, from a repo not yet reviewed: a hint for part 4, n
      and negatives; HAN only adds an edition-twin report, which draws no random numbers.
    - Its graph builder, walks and union graph, read for which edges they use.
 2. **LMSPS's own feature propagation** on the k3 graph (1,730 products, split 1), with and
-   without self-loops (`scratchpad/part9/loops_features.py`, which calls `utils.load_dataset`
+   without self-loops (`review/evidence/part9_loops_features.py`, which calls `utils.load_dataset`
    and `hg_propagate_feat_dgl`).
 3. **The search end to end** on k3 with the new default: a 20-epoch smoke run. Its JSON records
    `same_type_loops: false`.
@@ -106,7 +106,7 @@ user-path features for products without training users.
 ## Parked: the HAN repo, for when you review it
 
 Measured with that repo's code, so read these as leads rather than results. My changes are saved
-as `scratchpad/deliver/han_improve_part9_parked.patch` (16 files, not applied or committed
+as `review/evidence/han_improve_part9_parked.patch` (16 files, not applied or committed
 anywhere).
 
 1. **Split-seed default 0** in every script; split 1 needed.
@@ -120,18 +120,20 @@ anywhere).
      (Hit@10 0.27–0.28 against 0.42).
    - A control with the same fold-by-fold sampling but full graphs did not collapse, so the
      collapse comes from the fold graphs.
+   - Per seed: `review/evidence/part9_han_fold_graphs_k3.txt`.
 4. **Comparison design.**
    - The manual set has 5 paths, matching neither 4 nor 6. In the Fleet v2 HAN runs, 6-path sets
      beat 4-path sets by 0.012 Hit@10.
    - Its `PCCP` is nearly empty with leaf categories.
    - One random draw per size; no popularity row (popularity alone gives 0.41 Hit@10 on k3).
+   - Size-matched manual sets, frozen before any result: `review/manual_metapath_sets.md`.
 5. **Graph construction.** Pruning to 20 neighbours after every hop turns long paths into beams;
    symmetrisation makes popular products hubs.
 6. **Docs:** 504-d features, split 0, and reference numbers from the duplicate-inflated data.
 
 ## What changed
 
-Not committed (pending your approval):
+Committed in `30abef6`:
 - `hgb/utils.py`: P–P / C–C self-loops only with `--same-type-loops`.
 - `hgb/train_search.py`: the flag.
 - `hgb/tests/test_link_split.py`: `test_amazon_same_type_loops`; `_load_amazon` passes extra

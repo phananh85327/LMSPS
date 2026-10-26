@@ -1,0 +1,1797 @@
+diff --git a/MANUAL_SETS.md b/MANUAL_SETS.md
+new file mode 100644
+index 0000000..84b33e2
+--- /dev/null
++++ b/MANUAL_SETS.md
+@@ -0,0 +1,125 @@
++# Manual meta-path sets for the AMAZON user–product graph
++
++Hand-picked meta-path sets to compare against the sets LMSPS finds automatically, for **user →
++product link prediction** with HAN (or any meta-path model). They are the `amazon_lp_m1` …
++`amazon_lp_m8` keys in `arch.py`, frozen on 2026-10-26 before any result on the rebuilt data, so
++the comparison can't be tuned after the fact.
++
++## 1. The graph and the notation
++
++| Node type | What it is |
++|---|---|
++| **P** | Product (book, music, DVD, video): the node HAN encodes |
++| **U** | User (customer) |
++| **C** | Category |
++
++| Relation | Meaning |
++|---|---|
++| **P–P** | "Customers also bought": Amazon's co-purchase list, built from *all* Amazon customers |
++| **U–P** | A user gave the product a positive review (training edges only, in every graph) |
++| **P–C** | Product → its leaf category (the rebuilt data links leaves only) |
++| **C–C** | Category hierarchy (parent ↔ child) |
++
++A meta-path is written from the target product outwards. `PUP` means product ← user ← product: two
++products reviewed by the same user. Every step is a plain relation, with **no self-loops**: `PPUP`
++is "reviewed together with an also-bought product" and does not contain `PUP`. This is how
++`build_metapath_graphs.py` and `train_metapath2vec.py` build paths, and what LMSPS's search scores
++since 2026-10-26.
++
++A path and its reverse (`PPUP` / `PUPP`) give the same HAN graph once it is made symmetric; these
++sets use the alphabetically smaller key, as the search does.
++
++## 2. How the paths were chosen
++
++1. **One path per kind of evidence.** Products relate in three independent ways:
++   - **co-purchase:** Amazon's own behaviour data (`PP`)
++   - **co-review:** your users' behaviour (`PUP`)
++   - **content:** shared categories (`PCP`)
++
++   Recommender work on this kind of data uses exactly this pattern: one item–user–item path plus one
++   item–attribute–item path per attribute.
++2. **Short before long.** The HAN paper uses symmetric paths of 1–4 hops. Unpruned, every path with
++   two user hops reaches about 60% of all products on the small test graph (table below).
++   `build_metapath_graphs.py` keeps each product's 20 strongest neighbours after every hop, so a
++   long path becomes "the 20 products with the most walks through the strongest intermediate
++   nodes". That is a usable graph, but no longer "everything reachable", and it overlaps the
++   shorter path it extends (`PUPUP` shares 54% of its edges with `PUP` on the test graph).
++3. **No dead paths.** With leaf-only categories, `PCCP` (leaf → parent → products filed directly
++   under the parent) leaves 85% of products without a neighbour. It is left out; `PCCCP` (sibling
++   leaves through the parent) is the meaningful wider category path.
++4. **Sizes match the automatic sets** (4 and 6 paths), so a win can't come from having more paths:
++   in the Fleet v2 HAN runs, 6-path sets beat 4-path sets by about 0.012 Hit@10.
++
++### Density of the candidate paths
++
++Small test graph (1,730 products, training edges of split 1, plain relations). Treat it as
++illustrative: it keeps few also-bought partners (on the full data 88% of products have at least
++one, about 4 on average), so `PP`-paths look emptier here than they are.
++
++| Path | Meaning | Unpruned reach: share of pairs (median neighbours) | HAN graph: mean degree | Products isolated |
++|---|---|---|---|---|
++| `PP` | also bought | 0.01% (0)* | 0.2* | 87%* |
++| `PPP` | bought with what's bought with it | 0.01% (0)* | 0.2* | 95%* |
++| `PUP` | reviewed by the same user | 3.0% (34) | 26.4 | 0% |
++| `PCP` | same leaf category | 3.4% (52) | 23.4 | 2% |
++| `PCCP` | products filed under the parent category | 0.08% (0) | 1.4 | 85% |
++| `PPUP` | reviewed together with an also-bought product | 1.1% (6)* | 4.2* | 38%* |
++| `PCCCP` | sibling categories (via the parent) | 6.2% (92) | 27.1 | 1% |
++| `PCPCP` | categories that co-occur with its categories | 19% (329) | 28.4 | 2% |
++| `PCPUP` | reviewed together with products of its category | 63% (1,152) | 34.2 | 0% |
++| `PUPUP` | two co-review steps | 60% (1,098) | 32.8 | 0% |
++| `PUPPUP` | co-review, also-bought, co-review | 18% (262) | 29.4 | 13% |
++| `PPUPUP` | also-bought, then two co-review steps | 17% (169)* | 4.6* | 45%* |
++
++\* depends on P–P, which the test graph keeps very little of.
++
++## 3. The sets
++
++| Key | Set | Size | What it tests |
++|---|---|---|---|
++| `amazon_lp_m1` | `PUP`, `PCP` | 2 | Minimal HAN-paper style: one behaviour path, one attribute path |
++| `amazon_lp_m2` | `PP`, `PUP`, `PCP` | 3 | The standard recommender trio |
++| `amazon_lp_m3` | `PP`, `PUP`, `PPUP` | 3 | Behaviour only: do categories add anything? |
++| `amazon_lp_m4` | `PCP`, `PCCCP`, `PCPCP` | 3 | Content only: how far do categories go alone? |
++| `amazon_lp_m5` | `PP`, `PUP`, `PCP`, `PPUP` | 4 | Balanced expert set, same size as the automatic ns 4 sets |
++| `amazon_lp_m6` | `PP`, `PPP`, `PUP`, `PCP`, `PPUP`, `PCCCP` | 6 | Balanced expert set, same size as the automatic ns 6 sets |
++| `amazon_lp_m7` | `PP`, `PPP`, `PUP`, `PCP` | 4 | No expertise: every path up to 2 hops |
++| `amazon_lp_m8` | `PUP`, `PCP`, `PUPUP`, `PCPUP` | 4 | Expert long-range paths |
++
++- **M1** is the floor. If an automatic set can't beat it, the search has not earned its cost.
++- **M2 vs M1** shows whether Amazon's co-purchase list adds anything beyond your users' co-reviews.
++- **M3** bridges co-purchase and co-review (`PPUP`). M3 ≈ M5 means categories contribute nothing.
++- **M4** is a control: content paths are the only ones that work for a product nobody has reviewed
++  yet. Expected to be the weakest; its gap to M2 shows how much of the task is behaviour.
++- **M5** is the set an expert would hand in: one path per evidence type plus the bridge path.
++  **The main comparison for the automatic ns 4 sets.**
++- **M6** adds the most meaningful wider versions of the strongest families (`PPP`, `PCCCP`).
++  **The main comparison for the automatic ns 6 sets.**
++- **M7** takes every path up to 2 hops, with no judgement, like the "maximum hop 2" setting the
++  LMSPS paper compares against. If the automatic search can't beat it, the search isn't needed for
++  this dataset; if M5/M6 beat it, expertise adds something.
++- **M8** gives long paths an expert's fair chance: `PUPUP` (neighbours of co-review neighbours) and
++  `PCPUP` (what the audience of this product's category reviews). The automatic sets in Fleet v2
++  leaned on two-user-hop paths; M8 shows whether that is the search's insight or just long paths.
++
++## 4. Comparing fairly
++
++- **One graph construction for every set:** `build_metapath_graphs.py` with the same `--topk`,
++  `--split-seed 1` and, if you use them, the same leave-fold-out graphs (`--kfold`) and
++  `--graph-kfold` in training.
++- **Same split and negatives** as the search. The search chose its paths with the validation
++  edges, so compare sets on **test** results; choose among the automatic sets by validation loss.
++- **At least 3 run seeds** for every row in the final table; report mean ± std. Differences smaller
++  than the seed spread are ties.
++- **Popularity row** (`popularity_baseline.py`). With 99 random negatives, popularity alone already
++  scores well; every set should be read against it.
++- **Random rows:** the `amazon_lp_pool4_s*` / `amazon_lp_pool6_s*` keys draw from the same 36
++  candidates the search chose from. Report the spread over the draws, never a single draw.
++- **Compare like with like:** M5 against the ns 4 automatic sets, M6 against ns 6, M7 as the
++  reference for both.
++
++## 5. Check the real graphs before training
++
++`build_metapath_graphs.py` prints, per path, the mean degree and the number of isolated products
++(also in each graph's `.meta.json`). Drop a path that leaves more than about half the products
++isolated: it costs a full GAT and contributes almost nothing (`METAPATH_CONTRACT.md`, S3).
+diff --git a/METAPATH_CONTRACT.md b/METAPATH_CONTRACT.md
+index f8b9220..e8aa96b 100644
+--- a/METAPATH_CONTRACT.md
++++ b/METAPATH_CONTRACT.md
+@@ -42,12 +42,16 @@ these hold. The checks live in `build_metapath_graphs.py:145` and
+ 
+ For AMAZON the alphabet is fixed in `han_utils.py::NODE_TYPE_IDS`:
+ 
+-| letter | node type | HGB type id | count | feature dim |
++| letter | node type | HGB type id | count before the rebuild | feature dim before the rebuild |
+ |---|---|---|---|---|
+ | `P` | Product | 0 | 90,659 | 504 |
+ | `C` | Category | 1 | 39,754 | 128 |
+ | `U` | User | 2 | 171,285 | 64 |
+ 
++The counts and dims are those of the data before the 2026-10-26 rebuild. The rebuilt data
++(edition duplicates merged, placeholder customers dropped, leaf-only categories, 260-d LSA
++title features) has fewer nodes; `data/AMAZON/meta.json` records its counts.
++
+ Any other character is an error. Lowercase is *not* normalized -- emit uppercase.
+ 
+ ### R2. The path starts and ends at the target type
+@@ -98,6 +102,13 @@ path PUUP: no base relation for step UU (available: ['CC', 'CP', 'PC', 'PP', 'PU
+ The practical consequence: **`U` may never appear twice in a row, and `U` must
+ always be surrounded by `P`.** Every user hop is a `PUP` sandwich.
+ 
++Every step is the plain relation: **no self-loops on `PP` or `CC`**, so a step always
++moves. `PPUP` is "reviewed together with an also-bought product" and does not contain
++`PUP`; with leaf-only categories `PCCP` is nearly empty. A discovery method must score
++paths with the same meaning, or the paths it ranks are not the graphs built here. LMSPS
++does since 2026-10-26 (its `--same-type-loops` reproduces the self-loop semantics of
++Fleet v1/v2, whose paths therefore meant something else).
++
+ ### R5. Paths must be unique *after* symmetrization
+ 
+ `materialize_path` finishes with `out = out.maximum(out.T)`. That means a path
+@@ -156,12 +167,17 @@ things must match, or the numbers mean nothing:
+ ### F1. Same data
+ 
+ Read the same `data/AMAZON/` HGB `.dat` files. Do not regenerate or re-filter them.
++Since 2026-10-26 that is the rebuilt data from LMSPS's `hgb/amazon_extract.py` and
++`hgb/dat_generator.py`; graphs, blobs and logs from the earlier data are not comparable
++(`train_han.py` refuses graphs built from other data).
+ 
+ ### F2. Same split seed
+ 
+-Everything downstream is pinned by `--split-seed 0`. If your discovery method
+-looks at edges at all (LMSPS does -- it trains on them), it must build its split
+-with the same `build_link_split(dl, src_type, dst_type, seed=<same seed>)`.
++Everything downstream is pinned by `--split-seed 1` (the split the LMSPS fleets
++searched on; every script here defaults to it). If your discovery method looks at edges
++at all (LMSPS does -- it trains on them and picks its set by validation loss), it must
++build its split with the same `build_link_split(dl, src_type, dst_type, seed=<same seed>)`.
++On any other split, its validation edges can be this repo's test edges.
+ 
+ ### F3. Same leakage rule
+ 
+@@ -222,8 +238,10 @@ Once the list is accepted, this is what happens to it -- a new discovery repo do
+    prunes to `--topk 20` neighbors per row after each step (walk-count ties are
+    broken by a seeded random key, `--tie-break random`; the legacy `id` mode
+    favored low product ids), binarizes, strips self-loops, symmetrizes, and writes
+-   `data/AMAZON/metapath_graphs/<path>_top20_split0.npz` plus a
+-   `<path>_top20_split0.meta.json` sidecar recording the tie-break mode.
++   `data/AMAZON/metapath_graphs/<path>_top20_split1.npz` plus a
++   `<path>_top20_split1.meta.json` sidecar recording the tie-break mode and the training
++   edges the graph was built from. With `--kfold K` it also writes leave-fold-out graphs
++   (`..._fold<f>of<K>`) for `train_han.py --graph-kfold K`.
+ 2. `train_han.py` loads one graph per path, appends self-loops, runs one GAT per
+    path and fuses them with semantic attention, trains with BPR, and evaluates
+    with 99 sampled negatives -> Precision/Recall/NDCG/Hit@K.
+@@ -244,21 +262,24 @@ Run these before trusting a comparison:
+ 1. **Schema check** -- every path matches `^P[PCU]*P$`, has no `UU`/`UC`/`CU`
+    substring, and no duplicate under `min(p, p[::-1])`.
+ 2. **Materialize** -- `build_metapath_graphs.py --paths "<yours>" --topk 20
+-   --split-seed 0` completes and reports a plausible mean degree (roughly 10-40)
++   --split-seed 1` completes and reports a plausible mean degree (roughly 10-40)
+    and a low isolated-node count for most paths.
+ 3. **Leakage** -- rebuild your discovery input with the *full* U-P adjacency in a
+    throwaway run and confirm the edge count differs from the train-only one. If
+    it does not, your method was reading the full matrix.
+-4. **Train** -- `train_han.py --paths "<yours>" --split-seed 0 --stage 2` runs end
++4. **Train** -- `train_han.py --paths "<yours>" --split-seed 1 --stage 2` runs end
+    to end and prints metrics.
+ 5. **Sanity** -- Hit@10 must land well above the 0.10 random-guess floor (1 positive
+    among 100 candidates). A value near 0.10 is a bug, not a weak method -- almost
+    always a global-vs-local node-id mismatch, since eval edges are local per type.
+ 
+-Reference numbers on AMAZON (per-edge Hit@10 / NDCG@10, 99 sampled negatives,
+-`--user-tower embedding`, split-seed 1, run-seed 1; logs in `logs/Final 1..4`).
+-These graphs were built with the legacy `--tie-break id`; numbers with the
+-random tie-break are not yet available.
++**Legacy** reference numbers on AMAZON, all on the data BEFORE the 2026-10-26 rebuild:
++edition duplicates gave half of the test edges a copy in train, which lifted every row
++by several points, and the search used different path semantics (R4). Use them only to
++check that a run is in a sensible range; new tables need the rebuilt data, a
++popularity row (`popularity_baseline.py`) and 3 run seeds. Per-edge Hit@10 / NDCG@10,
++99 sampled negatives, `--user-tower embedding`, split-seed 1, run-seed 1; logs in
++`logs/Final 1..4`, graphs built with the legacy `--tie-break id`.
+ 
+ | model | paths | Hit@10 | NDCG@10 |
+ |---|---|---|---|
+@@ -269,6 +290,10 @@ random tie-break are not yet available.
+ | metapath2vec | `amazon_lp_manual_1` | 0.785 | -- |
+ | random | any | ~0.10 | -- |
+ 
++With the random tie-break (`output/AMAZON/Han_f4_beta_15`, `Han_f6_beta_15`, `M2v_f*`,
++`gat_s1.txt`; Fleet v2 shortlist, same old data): HAN 0.847 - 0.855 on the 4-path sets
++and 0.859 - 0.867 on the 6-path sets, metapath2vec 0.78 - 0.82, GAT 0.79.
++
+ (An older protocol -- `--user-tower feats`, split-seed 0 -- gave HAN 0.5610 /
+ 0.3472 and the LMSPS retrain 0.5756 / 0.3591; those are not comparable to the
+ rows above.)
+diff --git a/README.md b/README.md
+index 49f4ba7..84fe958 100644
+--- a/README.md
++++ b/README.md
+@@ -11,15 +11,18 @@ Dependencies: torch (+CUDA), numpy, scipy, tqdm. No dgl / torch_sparse.
+ 
+ ## Inputs
+ 
+-- `data/AMAZON/` -- HGB-format node.dat / link.dat / label.dat[.test]
+-  (built by `preprocessing/dat_generator.py` from the CSVs the C# pipeline in
+-  `preprocessing/` writes; see `preprocessing/README.md` for the filter chain and
+-  the known data issues). `data_leafcat/AMAZON/` is the same dataset with
+-  products linked only to their leaf categories (`--category-link leaf`); run any
+-  script against it with `--root data_leafcat`.
++- `data/AMAZON/` -- HGB-format node.dat / link.dat / label.dat[.test], **rebuilt
++  2026-10-26** with the LMSPS repo's `hgb/amazon_extract.py` and `hgb/dat_generator.py`:
++  edition duplicates merged (they gave half of all test edges a copy in train),
++  placeholder customers dropped, products linked to leaf categories only, 260-d title
++  features (256 LSA + 4 group). Details: LMSPS `review/part1_data_pipeline.md`. Graphs,
++  blobs and logs from the earlier data (including `data_leafcat/` and the old
++  `preprocessing/` output) are not comparable; `train_han.py` refuses graphs built from
++  other data.
+ - a comma-separated meta-path list (from your discovery method), or an
+-  `arch.py` key via `--arch` (e.g. `amazon_lp_han` = the discovered set of
+-  record, `amazon_lp_manual` = the hand-picked ablation set)
++  `arch.py` key via `--arch` (the rerun's discovered sets; `amazon_lp_m1` ... `m8` = the
++  frozen manual sets, see `MANUAL_SETS.md`; `amazon_lp_pool4_s*` / `pool6_s*` = random
++  draws from the search's own candidates)
+ 
+ ## Flow
+ 
+@@ -30,33 +33,35 @@ Dependencies: torch (+CUDA), numpy, scipy, tqdm. No dgl / torch_sparse.
+     #    option existed used the id tie-break (--tie-break id), which made low
+     #    product ids hubs -- rebuild them. Each .npz gets a .meta.json sidecar
+     #    recording the mode; train_han.py warns when the sidecar is missing.
+-    python build_metapath_graphs.py --dataset AMAZON --arch amazon_lp_han --topk 20 --split-seed 0
++    python build_metapath_graphs.py --dataset AMAZON --arch amazon_lp_han --topk 20 --split-seed 1
+     python check_graph_bias.py data/AMAZON/metapath_graphs      # per-id-decile degree audit
+ 
+     # 2. HAN -- config of record. --beta-warmup 15 is REQUIRED: it freezes the
+     #    semantic attention to uniform for the first 15 epochs so every per-path
+     #    GAT gets gradient signal; without it, attention collapses onto 1-2 paths
+     #    at initialization (rich-get-richer) and the other paths are never used.
+-    python train_han.py --dataset AMAZON --arch amazon_lp_han --split-seed 0 \
++    python train_han.py --dataset AMAZON --arch amazon_lp_han --split-seed 1 \
+         --stage 150 --patience 10 --beta-warmup 15 --seed 1 \
+         --save-emb output/AMAZON/han_emb_auto_s1.pt
+ 
+     # 2a. paper-faithful hyperparameters (Wang et al. 2019, Sec. 5.3): lr 0.005,
+     #     weight-decay 0.001, dropout 0.6, hidden 64 (8x8), patience 100, no
+     #     warmup / temperature. Explicit flags still override the preset.
+-    python train_han.py --dataset AMAZON --arch amazon_lp_han --split-seed 0 \
++    python train_han.py --dataset AMAZON --arch amazon_lp_han --split-seed 1 \
+         --paper-config --seed 1 --save-emb output/AMAZON/han_emb_auto_paper_s1.pt
+ 
+     # 2b. baselines on the same split (thesis comparison rows)
+-    python train_metapath2vec.py --dataset AMAZON --arch amazon_lp_han --split-seed 0 \
++    python popularity_baseline.py --split-seed 1 --save-emb output/AMAZON/popularity_s1.pt
++    python train_metapath2vec.py --dataset AMAZON --arch amazon_lp_han --split-seed 1 \
+         --epochs 50 --evals-per-epoch 4 --patience 6 --seed 1 \
+         --save-emb output/AMAZON/m2v_emb_auto_s1.pt
+-    python train_gat.py --dataset AMAZON --split-seed 0 --stage 50 --patience 4 --seed 1 \
++    python train_gat.py --dataset AMAZON --split-seed 1 --stage 50 --patience 4 --seed 1 \
+         --save-emb output/AMAZON/gat_emb_s1.pt
+ 
+     # 2c. ablations -- does AUTOMATIC discovery beat manual / random paths?
+-    #     (same pipeline with --arch amazon_lp_manual; materialize in step 1 first)
+-    python random_paths.py --seed 0     # prints a seeded random valid path list
++    #     (same pipeline with --arch amazon_lp_m5 / m6 / m7 and the amazon_lp_pool* keys;
++    #     materialize in step 1 first)
++    python random_paths.py --num 4 --pool --seed 0     # a random draw from the search's candidates
+ 
+     # 3. recompute test metrics from ANY saved embeddings -- no retraining.
+     #    Rebuilds the deterministic split from the blob's own split_seed, prints
+@@ -68,43 +73,50 @@ Dependencies: torch (+CUDA), numpy, scipy, tqdm. No dgl / torch_sparse.
+     python recommend.py --emb output/AMAZON/han_emb_auto_s1.pt --interactive \
+         --products-csv <...>/filtered_products.csv --users-csv <...>/filtered_users.csv --exclude-seen
+ 
+-## Run flow (locked protocol, 2026-10-23)
++## Run flow (rebuilt data, 2026-10-26)
+ 
+ Everything below is driven by `run_all.bat <stage>` (`execute.bat` forwards to it; no
+-argument = `summarize`). Split seed 1 everywhere (the LMSPS fleets selected their paths on
+-split 1), graphs read from `data/AMAZON/metapath_graphs_all_unique` via `--graph-dir`, one
+-blob per run at `output/AMAZON/<model>_<archkey>_s<seed>[_paper].pt`, one log per run under
+-`logs/Final 5/`. A run whose blob exists is skipped, so the script can be relaunched.
+-
+-| stage | what | runs | GPU time (12 GB card) |
+-|---|---|---|---|
+-| `build` | manual + random ablation paths into the shared graph dir (`--skip-existing`) | 3 | ~1 h |
+-| `audit` | `check_graph_bias.py`, `check_edition_twins.py` | 2 | 10 min |
+-| `han` | HAN config of record (`--stage 150 --patience 10 --beta-warmup 15`), seed 1, 13 shortlist keys + `amazon_lp_manual` + `amazon_lp_random4_s0` + `amazon_lp_random6_s0` | 16 | ~16 h |
+-| `m2v` | metapath2vec fast sweep (`--epochs 10 --evals-per-epoch 4 --patience 6`), same 16 keys | 16 | ~8 h |
+-| `gat` | GAT on the union graph (arch-independent), seeds 1 2 3 | 3 | ~3 h |
+-| `seeds` | HAN seeds 2 3 on the headline keys `amazon_lp_f4_c`, `amazon_lp_f6_s1`, `amazon_lp_manual` (+ extra keys passed as arguments) | 6+ | ~10 h |
+-| `m2v_paper` | metapath2vec `--paper-walks` (walk length 100, 10 walks/node, window 5), seeds 1 2 3, headline keys | 9 | ~60 h |
+-| `han_paper` | HAN `--paper-config` (Wang et al. Sec. 5.3 hyperparameters), seed 1, headline keys | 3 | ~8 h |
+-| `summarize` | `summarize_results.py --group --csv "logs/Final 5/results.csv"` | 1 | minutes |
+-
+-`run_all.bat all` runs them in that order (the 60-hour `m2v_paper` stage is second to last, so
+-every other table can be drafted after ~45 h); `run_all.bat dry` prints every command.
++argument = `summarize`). Split seed 1 everywhere (the LMSPS fleets select their paths on
++split 1), graphs read from `data/AMAZON/metapath_graphs_rebuilt` via `--graph-dir`, one blob
++per run at `output/AMAZON/rebuilt/<model>_<archkey>_s<seed>[_paper].pt`, one log per run
++under `logs/Final 6/`. A run whose blob exists is skipped, so the script can be relaunched;
++the folders are new so that nothing from the old data is skipped over or reused.
++
++| stage | what | runs |
++|---|---|---|
++| `build` | every path of every key below into the shared graph dir (`--skip-existing`) | 1 per key |
++| `audit` | `check_graph_bias.py`, `check_edition_twins.py` (twin share should now be ~0) | 2 |
++| `popularity` | training-popularity baseline, no learning | 1 |
++| `han` | HAN config of record (`--stage 150 --patience 10 --beta-warmup 15`), seed 1: the rerun's shortlist keys (`SHORTLIST`, fill in first) + `amazon_lp_m5`, `m6`, `m7` + six `amazon_lp_pool*` random draws | 9 + shortlist |
++| `m2v` | metapath2vec fast sweep (`--epochs 10 --evals-per-epoch 4 --patience 6`), same keys | 9 + shortlist |
++| `gat` | GAT on the union graph (arch-independent), seeds 1 2 3 | 3 |
++| `seeds` | HAN seeds 2 3 on `amazon_lp_m5`, `m6`, `m7` + the keys passed as arguments (the best discovered key per ns, by validation BPR) | 10 |
++| `m2v_paper` | metapath2vec `--paper-walks` (walk length 100, 10 walks/node, window 5), seeds 1 2 3, headline keys | 9 |
++| `han_paper` | HAN `--paper-config` (Wang et al. Sec. 5.3 hyperparameters), seed 1, headline keys | 3 |
++| `han_extra` | HAN seed 1 on the other manual sets (M1-M4, M8); not part of `all` | 5 |
++| `summarize` | `summarize_results.py --group --csv "logs/Final 6/results.csv"` | 1 |
++
++On the old data a HAN run took about an hour on a 12 GB card; the rebuilt data has fewer
++products and less than half the edges. `run_all.bat all` runs the stages in table order
++(`han_extra` excepted); `run_all.bat dry` prints every command. `FOLDS` at the top of the
++script switches on the leave-fold-out training graphs (section "Self-inclusion").
+ 
+ How to read the result table (`summarize_results.py`):
+-- **Choose the best arch by validation BPR**, never by a test metric. Then pass that key to
+-  `run_all.bat seeds <key>` if it is not already a headline key.
+-- Rows: *discovered* (13 shortlist sets from the LMSPS fleet, 4 or 6 paths), *manual* (5 hand-picked
+-  paths), *random* (schema-valid random paths at the same budgets) -- the discovery question is
+-  whether the discovered rows beat manual and random at equal path budget; GAT is the
+-  heterogeneity-blind floor; metapath2vec the shallow meta-path baseline.
+-- Report `hit10_notwin` next to `hit10`: the duplicate-edition shortcut (section "Metrics") lifts
+-  every model by about 7-8 points and the non-twin column is the recommendation-quality number.
++- **Choose the best discovered set per path budget by validation BPR**, never by a test
++  metric, and pass those keys to `run_all.bat seeds <ns4 key> <ns6 key>`.
++- **Compare on test, at equal path budget, over 3 seeds:** the best discovered ns-4 set vs
++  `amazon_lp_m5`, ns-6 vs `amazon_lp_m6`, `amazon_lp_m7` (every path up to 2 hops) as the
++  no-expertise reference, the `pool` rows as the spread of chance picks from the same
++  candidates. A difference smaller than the seed spread is a tie.
++- **Read every row against `popularity`.** With 99 uniform negatives it scores well without
++  learning anything (0.41 Hit@10 on a small test graph).
++- GAT is the heterogeneity-blind baseline; metapath2vec the shallow meta-path baseline.
+ - `han_paper` / `m2v_paper` rows are fidelity rows (paper hyperparameters / paper walk corpus), not
+   the config of record; keep them in a separate table.
+ 
+-Legacy: `logs/Final 1-4` and the `han_emb_*`, `m2v_emb_*`, `Old 2/` blobs predate the tie-break fix
+-and use retired arch keys; they are not comparable with this flow.
++Legacy: `logs/Final 1-5`, `output/AMAZON/Han_f*`, `M2v_f*`, `gat_s1.txt` and the `han_emb_*`,
++`m2v_emb_*`, `Old 2/` blobs are from the data before the rebuild (and, for `Final 1-4`, the id
++tie-break); they are not comparable with this flow.
+ 
+ 
+ 
+@@ -149,7 +161,9 @@ Every trainer and `eval_emb.py` therefore report Hit@10 / NDCG@10 separately for
+ `check_edition_twins.py` prints the dataset-level numbers). Read the non-twin row
+ as the number closest to recommendation quality rather than edition matching
+ (saved HAN runs: ~0.95 Hit@10 on twin edges vs ~0.80 on the rest; metapath2vec
+-~0.87 vs ~0.70).
++~0.87 vs ~0.70). All of this describes the data before the 2026-10-26 rebuild, which
++merges editions: on the rebuilt data the twin share should be close to 0, and the
++breakdown stays as a check that it is.
+ 
+ All trainers default to `--user-tower embedding`: the user side is a free
+ per-user trained vector, matching the per-user capacity metapath2vec/GAT get
+@@ -172,7 +186,17 @@ review is in `chat/2026-10-16_han-paper-fidelity-review.md`.
+   neighbor (adjacency product). `build_metapath_graphs.py` keeps the top-20 per
+   row by walk count after every hop and symmetrizes. Ties are broken by a seeded
+   random key (`--tie-break random`); the previous id tie-break biased the graphs
+-  toward low product ids (see `check_graph_bias.py`).
++  toward low product ids (see `check_graph_bias.py`). Pruning after every hop makes a
++  long path a beam: `PUPUP` is "the 20 products with the most walks through the 20
++  strongest intermediate nodes", not everything two co-reviews away (about 60% of all
++  products on a small test graph), so every graph ends with a mean degree of about
++  20-40, and a long path shares many edges with the path it extends (`PUPUP` with
++  `PUP`: 54% on the test graph). Symmetrization makes popular products hubs (up to
++  several thousand neighbors).
++- **Plain relations.** No self-loops on P-P or C-C: `PPUP` does not contain `PUP`.
++  LMSPS's search uses the same meaning since 2026-10-26; Fleet v1/v2 added self-loops,
++  so their path strings meant something else (in a small test graph, `PPUPUP` built
++  with and without self-loops shared 9% of its edges, `PCCPUP` 2%).
+ - **Users bypass HAN.** Only products are encoded by HAN; users are a free
+   embedding table (or a linear tower over hash features). The paper would give
+   users their own type-specific projection and meta-paths.
+@@ -183,11 +207,25 @@ review is in `chat/2026-10-16_han-paper-fidelity-review.md`.
+   hidden 512 (8 heads x 64), patience 20 with `--min-delta 5e-4`. The paper
+   (Sec. 5.3) uses lr 5e-3, L2 1e-3, dropout 0.6, 64-d embeddings, patience 100:
+   `--paper-config` applies those.
+-- **Product features.** The HGB `node.dat` product features are 504-d binary and
+-  very sparse (about a quarter of products have a single active bit, so many
+-  products share an identical feature vector); the paper used bag-of-words
+-  features. Node-level attention can only separate neighbors whose features
+-  differ.
++- **Product features.** The rebuilt data has 260-d product features (256 LSA dims
++  of the title + 4 group one-hot). The old 504-d binary features were very sparse
++  (about a quarter of products had a single active bit, so many products shared an
++  identical feature vector); node-level attention can only separate neighbors whose
++  features differ.
++
++## Self-inclusion (training edges inside their own graphs)
++
++A training edge (u, p) is part of the U-P matrix the meta-path graphs are built from, so
++u's other products enter p's neighbourhood partly because u reviewed p. No validation or
++test edge gets that help. On a small AMAZON graph, 13% of a training positive's `PUP`
++neighbours were the user's own items, against 3% for a test edge (`PUPUP` 11% vs 3%).
++`check_self_inclusion.py` prints the same numbers for any graph set.
++
++`build_metapath_graphs.py --kfold K` also builds, for every path through U, K graphs
++without one fold of the training edges each; `train_han.py --graph-kfold K` (and
++`train_gat.py --graph-kfold K`, whose union graph has the same problem one hop away)
++scores fold f's edges on graph f. Validation and test always use the full graphs.
++{{HAN_README_RESULT}}
+ 
+ ## Files
+ 
+@@ -199,17 +237,20 @@ review is in `chat/2026-10-16_han-paper-fidelity-review.md`.
+ | build_metapath_graphs.py | sparse chain-multiply + top-k pruning per meta-path (seeded random tie-break, .meta.json provenance) |
+ | check_graph_bias.py | per-id-decile degree audit of built graphs (detects tie-break / hub bias) |
+ | check_edition_twins.py | duplicate-edition audit: identical reviewer sets, share of test edges with a train twin |
+-| preprocessing/ | raw SNAP -> CSV (C#) -> HGB .dat (`dat_generator.py`); README documents filters and known issues |
++| popularity_baseline.py | training-popularity baseline (no learning), saved in the shared blob format |
++| check_self_inclusion.py | how much of a training positive's neighbourhood exists only because of the positive itself (section "Self-inclusion") |
+ | model_han.py | GAT-per-path + semantic attention (pure torch, custom SpMM backward, gradient checkpointing) |
+ | train_han.py | training / beta warmup / early stopping / evaluation; `--graph-dir` shared graph folder; `--paper-config` for the paper's Sec. 5.3 hyperparameters |
+ | train_metapath2vec.py | baseline: meta-path-guided walks + skip-gram (frozen-embedding eval); `--paper-walks` for the HAN paper's walk settings |
+ | train_gat.py | baseline: homogeneous GAT on the raw union graph (NO meta-paths); no ELU on the output layer |
+-| random_paths.py | seeded random valid meta-paths (ablation baseline; the `amazon_lp_random*` keys in arch.py) |
++| random_paths.py | seeded random valid meta-paths (ablation baseline): `--pool` draws from the search's own 36 candidates (the `amazon_lp_pool*` keys), the default walk sampler gave the legacy `amazon_lp_random*` keys |
+ | eval_emb.py | recompute all test metrics from saved embeddings, no retraining |
+ | summarize_results.py | one table over all saved blobs (val BPR, Hit/NDCG, twin / non-twin), mean +/- std over seeds |
+ | run_all.bat / execute.bat | the complete experiment flow by stage (see "Run flow") |
+ | recommend.py | ASIN -> similar products; user -> top-k products |
+ | METAPATH_CONTRACT.md | what a meta-path discovery repo must output for this repo to accept it |
++| MANUAL_SETS.md | the frozen manual sets `amazon_lp_m1` ... `m8` and why each path is in them |
++| tests/test_graphs.py | graph building, leave-fold-out graphs, the stale-graph check, the baselines (`python tests/test_graphs.py`) |
+ 
+ Saved embedding blobs (`*_emb.pt`, `<model>_<arch>_s<seed>.pt`) contain P_emb/U_emb plus
+ provenance: model, dataset, paths, split_seed, the test metrics (`metrics`, `metrics_twin`),
+diff --git a/arch.py b/arch.py
+index a104df3..44181c2 100644
+--- a/arch.py
++++ b/arch.py
+@@ -28,9 +28,25 @@ archs = {
+     # 5 paths to match the discovered amazon_lp_han count, so the ablation
+     # "does AUTOMATIC path discovery beat manual paths?" compares path QUALITY at
+     # an equal path budget -- see random_paths.py for the matching random row.
++    # LEGACY: 5 paths matches neither ns-4 nor ns-6 sets, and with the rebuilt data's
++    # leaf-only categories PCCP (leaf -> parent -> products filed under the parent)
++    # is nearly empty. Use amazon_lp_m5 / amazon_lp_m6 below for new tables.
+     "amazon_lp_manual": [
+         ['PP', 'PCP', 'PUP', 'PPP', 'PCCP'], []],
+-    # ---- Fleet v2 final schedule (2026-10-22): 30 seeds per ns, split-seed 1,
++    # ---- manual sets frozen 2026-10-26, BEFORE any result on the rebuilt data (reasons
++    # per set in MANUAL_SETS.md). Compare like with like: M5 vs the ns-4 discovered sets,
++    # M6 vs ns-6, M7 (every path up to 2 hops, no judgement) as the reference for both.
++    "amazon_lp_m1": [['PUP', 'PCP'], []],
++    "amazon_lp_m2": [['PP', 'PUP', 'PCP'], []],
++    "amazon_lp_m3": [['PP', 'PUP', 'PPUP'], []],
++    "amazon_lp_m4": [['PCP', 'PCCCP', 'PCPCP'], []],
++    "amazon_lp_m5": [['PP', 'PUP', 'PCP', 'PPUP'], []],
++    "amazon_lp_m6": [['PP', 'PPP', 'PUP', 'PCP', 'PPUP', 'PCCCP'], []],
++    "amazon_lp_m7": [['PP', 'PPP', 'PUP', 'PCP'], []],
++    "amazon_lp_m8": [['PUP', 'PCP', 'PUPUP', 'PCPUP'], []],
++    # ---- Fleet v2 final schedule (2026-10-22): PRE-FIX DATA AND SEARCH. Replace these
++    # with the rerun's sets (LMSPS reselect_fleet.py averaged one-SE sets) before any new
++    # table; they are kept for the legacy logs in output/AMAZON. 30 seeds per ns, split-seed 1,
+     # stage 150, 36 reverse-deduplicated candidates, warm-up 15, exhaustive
+     # noise-free selection; 1-SE re-selection (delta 0.010, leave-one-out vote;
+     # source: logs/Fleet v2/final_ns4|final_ns6/reselect_d010.json "shortlist").
+@@ -81,6 +97,16 @@ archs = {
+         ['PUPUP', 'PPPUP', 'PPUPCP', 'PCCCP'], []],
+     "amazon_lp_random6_s0": [
+         ['PUPUP', 'PPPUP', 'PPUPCP', 'PCCCP', 'PPUPUP', 'PUPP'], []],
++    # ---- random draws from the search's OWN candidates (2026-10-26): uniform over the 36
++    # reverse-deduplicated P...P paths of 2-6 letters LMSPS chose from, from
++    #   python random_paths.py --num 4 --pool --seed S     (and --num 6)
++    # One draw is an anecdote: report the spread over the three seeds per budget.
++    "amazon_lp_pool4_s0": [['PCCCPP', 'PCPUP', 'PPPP', 'PPPPPP'], []],
++    "amazon_lp_pool4_s1": [['PCCPCP', 'PCCPUP', 'PCP', 'PCPUP'], []],
++    "amazon_lp_pool4_s2": [['PCCP', 'PCCPP', 'PCPCPP', 'PPP'], []],
++    "amazon_lp_pool6_s0": [['PCCCPP', 'PCPPCP', 'PCPUP', 'PPPP', 'PPPPPP', 'PPUPP'], []],
++    "amazon_lp_pool6_s1": [['PCCPCP', 'PCCPUP', 'PCP', 'PCPUP', 'PPPP', 'PPUPP'], []],
++    "amazon_lp_pool6_s2": [['PCCP', 'PCCPP', 'PCPCPP', 'PPP', 'PPUPUP', 'PUPPUP'], []],
+ }
+ 
+ # Aliases matching the keys the LMSPS repo (hgb/arch.py, reselect_fleet.py output)
+diff --git a/build_metapath_graphs.py b/build_metapath_graphs.py
+index 1803284..cc0ad82 100644
+--- a/build_metapath_graphs.py
++++ b/build_metapath_graphs.py
+@@ -16,6 +16,20 @@ Leakage rule (identical to utils.py::load_dataset): the U-P relation is replaced
+ its TRAIN-ONLY split (same --split-seed), so a PUP edge can never encode a val/test
+ interaction the model is later evaluated on.
+ 
++Self-inclusion rule (--kfold K): a TRAINING edge (u, p) is itself in the U-P matrix,
++so p's PUP neighbours include u's other products only because of that edge. Scored
++on that graph, a training positive looks easier than any held-out edge (measured on a
++small AMAZON graph: 13% vs 2-3% of p's PUP neighbours were the user's own items). With
++--kfold K the training edges get K folds (link_data.train_folds) and every path through
++U also gets K graphs, fold f's built WITHOUT fold f's edges; train_han.py /
++train_gat.py --graph-kfold K score fold f's edges on graph f. Val/test always use the
++graph built from all training edges. Paths without U do not depend on the U-P edges
++and get no fold graphs.
++
++Relations are the plain ones: no self-loops on P-P or C-C, so 'PPUP' means "reviewed
++together with an also-bought product" and does not contain 'PUP'. LMSPS's search uses
++the same semantics (its --same-type-loops is only for reproducing Fleet v1/v2).
++
+ Scale rule: a path like PUP has sum-over-users(degree^2) potential edges -- heavy
+ users would blow this into hundreds of millions. The chain is therefore multiplied
+ in row chunks with per-row top-k pruning (by walk count) after every step, then
+@@ -35,22 +49,26 @@ train_han.py can warn when it loads a legacy graph.
+ 
+ Usage (from han-recsys/):
+     python build_metapath_graphs.py --dataset AMAZON --arch amazon_lp_han \
+-        --topk 20 --split-seed 0 --target-relation "U,P"
++        --topk 20 --split-seed 1 --target-relation "U,P"
+ 
+ Output: data/<dataset>/metapath_graphs/<path>_top<k>_split<seed>.npz (scipy CSR,
+ binary, no self-loops -- train_han.py adds self-loops when building DGL graphs)
+-plus <same stem>.meta.json (tie_break, tie_seed, topk, split_seed, nnz, isolated).
++plus <same stem>.meta.json (tie_break, tie_seed, topk, split_seed, nnz, isolated,
++num_nodes, num_train_edges, train_edges_hash -- train_han.py refuses a graph built
++from other data, another split or another fold). With --kfold K, paths through U also
++get <stem>_fold<f>of<K>.npz / .meta.json.
+ """
+ 
+ import argparse
+ import json
+ import os
++from concurrent.futures import ProcessPoolExecutor
+ 
+ import numpy as np
+ import scipy.sparse as sp
+ 
+ from data_loader import data_loader
+-from link_data import build_link_split
++from link_data import build_link_split, edges_fingerprint, train_folds
+ 
+ # letter codes per dataset, matching utils.py::NODE_TYPE_IDS (kept local so this
+ # script does not import utils.py's full torch/dgl stack)
+@@ -88,6 +106,15 @@ def build_base_matrices(dl, dataset, link_split):
+     return {'PP': PP, 'CC': CC, 'PC': PC, 'CP': CP, 'UP': UP, 'PU': PU}
+ 
+ 
++def fold_base(base, link_split, keep):
++    """base with U-P / P-U rebuilt from the training edges where `keep` is True
++    (--kfold: every edge outside one fold)."""
++    edges = link_split['train_edges'][keep]
++    up = sp.csr_matrix((np.ones(len(edges), dtype=np.float32), (edges[:, 0], edges[:, 1])),
++                       shape=link_split['train_adj_src2dst'].shape)
++    return {**base, 'UP': up, 'PU': up.T.tocsr()}
++
++
+ def topk_per_row(mat, k, rng=None):
+     """Keep the k largest-valued entries per row of a CSR matrix.
+ 
+@@ -150,6 +177,23 @@ def materialize_path(path, base, topk, chunk_rows=4096, rng=None):
+     return out
+ 
+ 
++def build_one(job):
++    """Materialize and save one graph; returns the log line (worker entry point)."""
++    p, b, topk, stem, meta = job
++    # one generator per graph, re-seeded from the same seed: a graph does not depend
++    # on which other graphs were built in the same invocation
++    rng = np.random.default_rng(meta['tie_seed']) if meta['tie_break'] == 'random' else None
++    adj = materialize_path(p, b, topk, rng=rng)
++    isolated = int((np.diff(adj.indptr) == 0).sum())
++    sp.save_npz(stem + '.npz', adj)
++    meta = {**meta, 'num_nodes': int(adj.shape[0]), 'nnz': int(adj.nnz), 'isolated': isolated}
++    with open(stem + '.meta.json', 'w', encoding='utf-8') as f:
++        json.dump(meta, f, indent=2)
++    return (f'  {os.path.basename(stem)}: {adj.shape[0]} nodes, {adj.nnz} edges, '
++            f'mean degree {adj.nnz / max(adj.shape[0], 1):.1f}, {isolated} isolated nodes '
++            f'(tie-break {meta["tie_break"]}, {meta["num_train_edges"]} training edges)')
++
++
+ def main():
+     ap = argparse.ArgumentParser(
+         description='Materialize meta-path adjacency graphs for HAN.',
+@@ -165,8 +209,15 @@ def main():
+     ap.add_argument('--topk', type=int, default=20,
+                     help='max neighbors kept per row (by walk count) at every chain step')
+     ap.add_argument('--target-relation', type=str, default='U,P')
+-    ap.add_argument('--split-seed', type=int, default=0,
+-                    help='MUST match the --split-seed used for search/retrain')
++    ap.add_argument('--split-seed', type=int, default=1,
++                    help='MUST match the --split-seed of the search (the LMSPS fleets use 1)')
++    ap.add_argument('--kfold', type=int, default=0,
++                    help='also build K leave-fold-out graphs for every path through the source '
++                         'type (train_han.py / train_gat.py --graph-kfold K). 0 = only the graph '
++                         'from all training edges')
++    ap.add_argument('--workers', type=int, default=1,
++                    help='graphs built in parallel processes (each holds its own intermediate '
++                         'products in RAM: a few GB per worker on full AMAZON for 6-letter paths)')
+     ap.add_argument('--num-neg-eval', type=int, default=99)
+     ap.add_argument('--tie-break', type=str, default='random', choices=['random', 'id'],
+                     help='how top-k pruning resolves equal walk counts. "random": seeded '
+@@ -180,9 +231,10 @@ def main():
+                          'named per path, so several arches can share one directory; pass the same '
+                          'value to train_han.py --graph-dir')
+     ap.add_argument('--skip-existing', action='store_true',
+-                    help='skip a path whose .npz and .meta.json already exist in the output '
+-                         'directory (same top-k / split seed), so arches sharing paths can be '
+-                         'built into one directory without redoing work')
++                    help='skip a graph whose .npz and .meta.json already exist in the output '
++                         'directory (same top-k / split seed / fold), so arches sharing paths can '
++                         'be built into one directory without redoing work. A graph built from '
++                         'other data is not detected here: train_han.py checks it on load')
+     args = ap.parse_args()
+     if args.tie_seed is None:
+         args.tie_seed = args.split_seed
+@@ -213,29 +265,36 @@ def main():
+     out_dir = args.graph_dir or os.path.join(args.root, args.dataset, 'metapath_graphs')
+     os.makedirs(out_dir, exist_ok=True)
+ 
++    n_train = len(link_split['train_edges'])
++    fold = train_folds(n_train, args.kfold, args.split_seed) if args.kfold else None
++    jobs = []
+     for p in paths:
+-        stem = os.path.join(out_dir, f'{p}_top{args.topk}_split{args.split_seed}')
+-        fname = stem + '.npz'
+-        if args.skip_existing and os.path.isfile(fname) and os.path.isfile(stem + '.meta.json'):
+-            print(f'Skipping {p}: {fname} exists')
+-            continue
+-        print(f'Materializing {p} (topk {args.topk}, tie-break {args.tie_break}) ...')
+-        # one generator per path, re-seeded from the same seed: a path's graph does
+-        # not depend on which other paths were built in the same invocation
+-        rng = (np.random.default_rng(args.tie_seed) if args.tie_break == 'random'
+-               else None)
+-        adj = materialize_path(p, base, args.topk, rng=rng)
+-        isolated = int((np.diff(adj.indptr) == 0).sum())
+-        sp.save_npz(fname, adj)
+-        meta = {'path': p, 'topk': args.topk, 'split_seed': args.split_seed,
+-                'tie_break': args.tie_break,
+-                'tie_seed': args.tie_seed if args.tie_break == 'random' else None,
+-                'num_nodes': int(adj.shape[0]), 'nnz': int(adj.nnz), 'isolated': isolated}
+-        with open(stem + '.meta.json', 'w', encoding='utf-8') as f:
+-            json.dump(meta, f, indent=2)
+-        print(f'  {p}: {adj.shape[0]} nodes, {adj.nnz} edges, '
+-              f'mean degree {adj.nnz / max(adj.shape[0], 1):.1f}, '
+-              f'{isolated} isolated nodes -> {fname}')
++        # (fold id, step matrices, training edges used); paths without the source
++        # type never touch the U-P edges, so their fold graphs would be identical
++        targets = [(None, base, link_split['train_edges'])]
++        if args.kfold and src_name in p:
++            targets += [(f, fold_base(base, link_split, fold != f), link_split['train_edges'][fold != f])
++                        for f in range(args.kfold)]
++        for f, b, used in targets:
++            stem = os.path.join(out_dir, f'{p}_top{args.topk}_split{args.split_seed}'
++                                + ('' if f is None else f'_fold{f}of{args.kfold}'))
++            if args.skip_existing and os.path.isfile(stem + '.npz') and os.path.isfile(stem + '.meta.json'):
++                print(f'Skipping {os.path.basename(stem)}: exists')
++                continue
++            meta = {'path': p, 'topk': args.topk, 'split_seed': args.split_seed,
++                    'tie_break': args.tie_break,
++                    'tie_seed': args.tie_seed if args.tie_break == 'random' else None,
++                    'num_train_edges': len(used), 'train_edges_hash': edges_fingerprint(used),
++                    'fold': f,
++                    'kfold': args.kfold if f is not None else None}
++            jobs.append((p, b, args.topk, stem, meta))
++    if args.workers > 1:
++        with ProcessPoolExecutor(args.workers) as ex:
++            for msg in ex.map(build_one, jobs):
++                print(msg)
++    else:
++        for job in jobs:
++            print(build_one(job))
+ 
+     print('Done.')
+ 
+diff --git a/check_edition_twins.py b/check_edition_twins.py
+index ee01a9b..4e83626 100644
+--- a/check_edition_twins.py
++++ b/check_edition_twins.py
+@@ -47,7 +47,7 @@ def main():
+     ap.add_argument('--root', type=str, default='data')
+     ap.add_argument('--dataset', type=str, default='AMAZON')
+     ap.add_argument('--target-relation', type=str, default='U,P')
+-    ap.add_argument('--split-seed', type=int, default=0)
++    ap.add_argument('--split-seed', type=int, default=1)
+     ap.add_argument('--num-neg-eval', type=int, default=99)
+     ap.add_argument('--products-csv', type=str, default='',
+                     help='filtered_products.csv to print titles of the largest groups')
+diff --git a/check_self_inclusion.py b/check_self_inclusion.py
+new file mode 100644
+index 0000000..33e485f
+--- /dev/null
++++ b/check_self_inclusion.py
+@@ -0,0 +1,109 @@
++#!/usr/bin/env python
++# -*- coding: utf-8 -*-
++"""
++How much of a training positive's meta-path neighbourhood exists only because of the
++positive itself?
++
++For a TRAINING edge (u, p), every path through U was built with that edge in the U-P
++matrix, so p's neighbours include u's other products partly because u reviewed p. A
++held-out edge never gets that. This prints, per path through U, the share of p's
++neighbours that are u's own training items:
++  - train edges on the graph they are trained on (all training edges),
++  - the same edges on their leave-fold-out graph (needs --kfold: the graphs that
++    build_metapath_graphs.py --kfold K wrote),
++  - test edges on the full graph (what evaluation sees).
++A training share far above the test share means the model learns from a signal it
++will not have at test time (train_han.py --graph-kfold removes it). On a small
++AMAZON graph: PUP 13% for training edges vs 3% for test edges.
++
++    python check_self_inclusion.py --arch amazon_lp_m5 --graph-dir data/AMAZON/metapath_graphs_rebuilt
++    python check_self_inclusion.py --paths PUP,PUPUP --kfold 10 --graph-dir ...
++"""
++
++import argparse
++import os
++
++import numpy as np
++import scipy.sparse as sp
++
++from data_loader import data_loader
++from link_data import build_link_split, train_folds
++from han_utils import NODE_TYPE_IDS
++
++
++def own_share(graph, user_items, edges):
++    """Mean share of p's neighbours (excluding p) that are u's items, and the share of
++    edges with at least one such neighbour, for (u, p) in `edges`."""
++    graph, user_items = graph.tocsr(), user_items.tocsr()
++    deg = np.diff(graph.indptr)[edges[:, 1]]
++    hits = np.asarray(graph[edges[:, 1]].multiply(user_items[edges[:, 0]]).sum(axis=1)).ravel()
++    return float(np.mean(np.where(deg > 0, hits / np.maximum(deg, 1), 0.0))), float(np.mean(hits > 0))
++
++
++def main():
++    ap = argparse.ArgumentParser(description=__doc__,
++                                 formatter_class=argparse.RawDescriptionHelpFormatter)
++    ap.add_argument('--root', type=str, default='data')
++    ap.add_argument('--dataset', type=str, default='AMAZON')
++    ap.add_argument('--target-relation', type=str, default='U,P')
++    ap.add_argument('--paths', type=str, default='')
++    ap.add_argument('--arch', type=str, default='')
++    ap.add_argument('--graph-dir', type=str, default='')
++    ap.add_argument('--topk', type=int, default=20)
++    ap.add_argument('--split-seed', type=int, default=1)
++    ap.add_argument('--kfold', type=int, default=0,
++                    help='also read the leave-fold-out graphs of build_metapath_graphs.py --kfold K')
++    ap.add_argument('--sample', type=int, default=50000,
++                    help='training / test edges sampled per measurement (0 = all)')
++    args = ap.parse_args()
++
++    if args.paths:
++        paths = [p.strip() for p in args.paths.split(',') if p.strip()]
++    elif args.arch:
++        from arch import archs
++        paths = archs[args.arch][0]
++    else:
++        raise SystemExit('pass --arch <arch.py key> or --paths "PUP,..."')
++    src_name, dst_name = args.target_relation.split(',')
++    paths = [p for p in paths if src_name in p]
++    if not paths:
++        raise SystemExit(f'no path visits {src_name}: nothing to measure')
++    tids = NODE_TYPE_IDS[args.dataset]
++    dl = data_loader(f'{args.root}/{args.dataset}')
++    ls = build_link_split(dl, tids[src_name], tids[dst_name], seed=args.split_seed)
++    graph_dir = args.graph_dir or os.path.join(args.root, args.dataset, 'metapath_graphs')
++    tr, te = ls['train_edges'], ls['test_edges']
++    rng = np.random.default_rng(0)
++
++    def sample(edges, idx=None):
++        idx = np.arange(len(edges)) if idx is None else idx
++        if args.sample and len(idx) > args.sample:
++            idx = rng.choice(idx, size=args.sample, replace=False)
++        return edges[idx]
++
++    fold = train_folds(len(tr), args.kfold, args.split_seed) if args.kfold else None
++    print(f'share of p\'s neighbours that are u\'s own training items (any = share of edges with at least one)')
++    print(f'{"path":<8} {"train edges, full graph":>24} {"same, own fold left out":>24} {"test edges":>18}')
++    for p in paths:
++        stem = os.path.join(graph_dir, f'{p}_top{args.topk}_split{args.split_seed}')
++        full = sp.load_npz(stem + '.npz')
++        s_tr, a_tr = own_share(full, ls['train_adj_src2dst'], sample(tr))
++        s_te, a_te = own_share(full, ls['train_adj_src2dst'], sample(te))
++        fold_col = '-'
++        if args.kfold:
++            acc = np.zeros(2)
++            n = 0
++            for f in range(args.kfold):
++                g = sp.load_npz(f'{stem}_fold{f}of{args.kfold}.npz')
++                keep = tr[fold != f]
++                items = sp.csr_matrix((np.ones(len(keep), dtype=np.float32), (keep[:, 0], keep[:, 1])),
++                                      shape=ls['train_adj_src2dst'].shape)
++                e = sample(tr, np.flatnonzero(fold == f))
++                acc += np.array(own_share(g, items, e)) * len(e)
++                n += len(e)
++            fold_col = f'{acc[0] / n:6.1%} ({acc[1] / n:5.1%})'
++        print(f'{p:<8} {f"{s_tr:6.1%} ({a_tr:5.1%})":>24} {fold_col:>24} {f"{s_te:6.1%} ({a_te:5.1%})":>18}')
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/link_data.py b/link_data.py
+index 847f78c..93bf2dd 100644
+--- a/link_data.py
++++ b/link_data.py
+@@ -179,6 +179,23 @@ def build_link_split(dl, src_type, dst_type, seed=0, val_ratio=0.1, test_ratio=0
+ 
+ 
+ 
++def edges_fingerprint(edges):
++    """Order-free short hash of an edge set [N, 2]. Graph sidecars record the training
++    edges a graph was built from, so train_han.py can refuse a graph built from other
++    data, another split or another fold."""
++    e = np.unique(np.asarray(edges, dtype=np.int64).reshape(-1, 2), axis=0)
++    return hashlib.blake2b(e.tobytes(), digest_size=8).hexdigest()
++
++
++def train_folds(num_train_edges, k, split_seed):
++    """Fold id in [0, k) per TRAIN edge, fixed by the split seed (not the run seed):
++    build_metapath_graphs.py --kfold builds one graph per fold from the training
++    edges OUTSIDE that fold, and train_han.py / train_gat.py --graph-kfold score
++    each fold's edges on its own graph, so a training edge is never inside the
++    graph it is scored on (a held-out edge never is either)."""
++    return np.random.default_rng(split_seed + 7).integers(0, k, size=num_train_edges)
++
++
+ class TrainEdgeSampler:
+     """Yields (src, pos_dst, neg_dst) batches for BPR training. Negatives are
+     resampled fresh every call (not cached) so the model sees varied negatives.
+diff --git a/popularity_baseline.py b/popularity_baseline.py
+new file mode 100644
+index 0000000..b6c5234
+--- /dev/null
++++ b/popularity_baseline.py
+@@ -0,0 +1,101 @@
++#!/usr/bin/env python
++# -*- coding: utf-8 -*-
++"""
++Popularity baseline: score every product by its number of TRAINING users -- no
++learning, no meta-paths -- and rank each test positive among its fixed 99 negatives
++with the same metrics as every trainer. With uniformly sampled negatives this is a
++strong row: positives are drawn in proportion to popularity, negatives are not. Read
++every model row against it (a meta-path model that barely beats it has learned little
++beyond popularity).
++
++Equal training counts are ordered by a seeded random key (--seed), not against the
++positive: popularity has many ties, and the trainers' pessimistic tie rule would
++understate it.
++
++    python popularity_baseline.py --split-seed 1 --save-emb output/AMAZON/popularity_s1.pt
++
++The blob has the shared format (P_emb = the popularity column, U_emb = ones), so
++eval_emb.py, summarize_results.py and recommend.py accept it like a trained model.
++"""
++
++import argparse
++import os
++
++import numpy as np
++import torch
++
++from data_loader import data_loader
++from link_data import build_link_split
++from han_utils import (NODE_TYPE_IDS, score_edges, evaluate_ranking,
++                       evaluate_ranking_by_user, print_by_user,
++                       evaluate_ranking_stratified, print_stratified,
++                       report_twin_breakdown)
++
++
++def popularity_scores(link_split, seed):
++    """Training degree per product, plus a seeded key in [0, 0.5) that orders ties
++    at random without reordering different counts."""
++    pop = np.asarray(link_split['train_adj_src2dst'].sum(axis=0)).ravel().astype(np.float64)
++    return pop + 0.5 * np.random.default_rng(seed).random(pop.size)
++
++
++def main(args):
++    src_name, dst_name = args.target_relation.split(',')
++    tids = NODE_TYPE_IDS[args.dataset]
++    dl = data_loader(f'{args.root}/{args.dataset}')
++    link_split = build_link_split(dl, tids[src_name], tids[dst_name],
++                                  seed=args.split_seed, num_neg_eval=args.num_neg_eval)
++    P_emb = torch.from_numpy(popularity_scores(link_split, args.seed)).unsqueeze(1)
++    U_emb = torch.ones(link_split['num_src'], 1, dtype=P_emb.dtype)
++
++    val = {}
++    for split in ('val', 'test'):
++        edges = torch.LongTensor(link_split[f'{split}_edges'])
++        negs = torch.LongTensor(link_split[f'{split}_negs'])
++        pos_scores = score_edges(U_emb, P_emb, edges[:, 0], edges[:, 1])
++        neg_scores = score_edges(U_emb, P_emb, edges[:, 0], negs)
++        results = evaluate_ranking(pos_scores, neg_scores)
++        print(f'{split.capitalize()} ranking metrics (training popularity):')
++        for k, v in results.items():
++            print(f'  {k}: {v:.4f}')
++        if split == 'val':
++            val = results
++    print_by_user(evaluate_ranking_by_user(
++        pos_scores, neg_scores, link_split['test_edges'], link_split['test_negs']))
++    deg = np.asarray(link_split['train_adj_src2dst'].sum(axis=1)).ravel()
++    strat = evaluate_ranking_stratified(pos_scores, neg_scores,
++                                        deg[link_split['test_edges'][:, 0]])
++    print('By user training degree:')
++    print_stratified(strat)
++    twin = report_twin_breakdown(pos_scores, neg_scores, link_split, link_split['test_edges'])
++
++    if args.save_emb:
++        os.makedirs(os.path.dirname(args.save_emb) or '.', exist_ok=True)
++        torch.save({'model': 'popularity', 'dataset': args.dataset,
++                    'target_relation': args.target_relation, 'paths': [],
++                    'split_seed': args.split_seed, 'P_emb': P_emb.float(), 'U_emb': U_emb.float(),
++                    'metrics': results, 'metrics_twin': twin, 'metrics_val': val,
++                    'best_val_loss': None, 'best_epoch': None, 'config': vars(args)},
++                   args.save_emb)
++        print(f'Saved to {args.save_emb}')
++    return results
++
++
++def parse_args():
++    ap = argparse.ArgumentParser(
++        description='Training-popularity baseline on the shared link-prediction protocol.',
++        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
++    ap.add_argument('--root', type=str, default='data')
++    ap.add_argument('--dataset', type=str, default='AMAZON')
++    ap.add_argument('--target-relation', type=str, default='U,P')
++    ap.add_argument('--split-seed', type=int, default=1,
++                    help='must match the search/build --split-seed (the LMSPS fleets use 1)')
++    ap.add_argument('--num-neg-eval', type=int, default=99)
++    ap.add_argument('--seed', type=int, default=1, help='seed of the random tie-break key')
++    ap.add_argument('--save-emb', type=str, default='',
++                    help="where to save the blob ('' = do not save)")
++    return ap.parse_args()
++
++
++if __name__ == '__main__':
++    main(parse_args())
+diff --git a/random_paths.py b/random_paths.py
+index b0e7da4..11c8c50 100644
+--- a/random_paths.py
++++ b/random_paths.py
+@@ -8,12 +8,19 @@ range. Sampling walks the SCHEMA graph only (never the data), so there are no
+ split or leakage concerns here.
+ 
+     python random_paths.py --num 5 --min-len 4 --max-len 6 --seed 0
++    python random_paths.py --num 4 --pool --seed 1
+ 
+ prints a --paths string plus a ready-to-paste arch.py entry. Then materialize
+ and train exactly like any other path set:
+ 
+-    python build_metapath_graphs.py --dataset AMAZON --paths "<printed>" --topk 20 --split-seed 0
+-    python train_han.py --dataset AMAZON --paths "<printed>" --split-seed 0
++    python build_metapath_graphs.py --dataset AMAZON --paths "<printed>" --topk 20 --split-seed 1
++    python train_han.py --dataset AMAZON --paths "<printed>" --split-seed 1
++
++--pool draws the paths uniformly from the candidates LMSPS searched over instead
++(every P...P schema path of 2-6 letters, one per reverse pair: the 36 candidates of
++train_search.py --num-hops 5 --tgt-ended-paths --dedupe-reversed). That is the
++right null for "did the search choose better than chance from its own candidates?";
++the default walk sampler only draws 4-6-letter paths (never PP, PCP or PUP).
+ """
+ 
+ import argparse
+@@ -36,6 +43,21 @@ def random_path(rng, length):
+             return ''.join(p)
+ 
+ 
++def candidate_pool(min_len=2, max_len=6):
++    """Every schema-valid TARGET...TARGET path of min_len..max_len letters, one per
++    reverse pair (the lexicographically smaller member, as LMSPS --dedupe-reversed)."""
++    out = set()
++
++    def extend(p):
++        if len(p) >= min_len and p[-1] == TARGET:
++            out.add(min(p, p[::-1]))
++        if len(p) < max_len:
++            for nxt in SCHEMA[p[-1]]:
++                extend(p + nxt)
++    extend(TARGET)
++    return sorted(out)
++
++
+ def main():
+     ap = argparse.ArgumentParser(
+         description='Random schema-valid meta-paths (ablation baseline).',
+@@ -44,10 +66,15 @@ def main():
+     ap.add_argument('--min-len', type=int, default=4, help='letters incl. both endpoints')
+     ap.add_argument('--max-len', type=int, default=6)
+     ap.add_argument('--seed', type=int, default=0)
++    ap.add_argument('--pool', action='store_true',
++                    help='sample --num paths uniformly from the LMSPS candidate pool of '
++                         '2-6-letter paths (ignores --min-len/--max-len)')
+     args = ap.parse_args()
+ 
+     rng = random.Random(args.seed)
+     seen, paths = set(), []
++    if args.pool:
++        paths = sorted(rng.sample(candidate_pool(), args.num))
+     while len(paths) < args.num:
+         p = random_path(rng, rng.randint(args.min_len, args.max_len))
+         canon = min(p, p[::-1])   # a path and its reverse materialize the same graph
+diff --git a/run_all.bat b/run_all.bat
+index b073f87..7d17f4e 100644
+--- a/run_all.bat
++++ b/run_all.bat
+@@ -1,26 +1,31 @@
+ @echo off
+ REM run_all.bat -- the complete experiment flow for this repo (HAN, metapath2vec, GAT)
+-REM on AMAZON, split seed 1, graphs from data\AMAZON\metapath_graphs_all_unique.
++REM on the REBUILT AMAZON data (2026-10-26), split seed 1, graphs from
++REM data\AMAZON\metapath_graphs_rebuilt.
+ REM
+ REM   run_all.bat <stage> [extra arch keys...]
+ REM
+ REM stages (in the order "all" runs them):
+-REM   build      materialize the manual + random ablation paths into the shared graph dir
++REM   build      materialize every path of every key below into the shared graph dir
+ REM   audit      check_graph_bias.py + check_edition_twins.py on the shared graph dir
+-REM   han        HAN config of record, seed 1, on the 13 shortlist keys + 3 ablation keys
+-REM   m2v        metapath2vec fast sweep, seed 1, same 16 keys
++REM   popularity training-popularity baseline (no learning), the floor every row is read against
++REM   han        HAN config of record, seed 1, on the shortlist + manual + random keys
++REM   m2v        metapath2vec fast sweep, seed 1, same keys
+ REM   gat        GAT (arch-independent), seeds 1 2 3
+-REM   seeds      HAN seeds 2 3 on the headline keys (+ any extra keys given as arguments,
+-REM              e.g. the best-by-val-BPR shortlist key per ns from summarize_results.py)
++REM   seeds      HAN seeds 2 3 on the headline keys (+ any extra keys given as arguments:
++REM              pass the best-by-val-BPR shortlist key per ns from summarize_results.py)
+ REM   m2v_paper  metapath2vec --paper-walks, seeds 1 2 3, headline keys (slowest stage)
+ REM   han_paper  HAN --paper-config, seed 1, headline keys
+-REM   summarize  summarize_results.py --group --csv "logs\Final 5\results.csv"
+-REM   all        every stage above, in that order
++REM   han_extra  HAN seed 1 on the other manual sets (M1-M4, M8); not part of "all"
++REM   summarize  summarize_results.py --group --csv "logs\Final 6\results.csv"
++REM   all        every stage above except han_extra, in that order
+ REM   dry        print every command of every stage without running anything
+ REM
+-REM Every run writes logs\Final 5\<stage>_<arch>_s<seed>.txt and a blob
+-REM output\AMAZON\<model>_<arch>_s<seed>[_paper].pt; a run whose blob already exists
+-REM is skipped, so the script can be re-launched after an interruption.
++REM Every run writes logs\Final 6\<stage>_<arch>_s<seed>.txt and a blob
++REM output\AMAZON\rebuilt\<model>_<arch>_s<seed>[_paper].pt; a run whose blob already
++REM exists is skipped, so the script can be re-launched after an interruption. The folders
++REM are new for the rebuilt data: blobs or graphs from the old data under the same names
++REM would otherwise be skipped over or reused.
+ 
+ setlocal EnableDelayedExpansion
+ cd /d "%~dp0"
+@@ -43,30 +48,47 @@ if "%DRY%"=="0" (
+ 
+ REM ---- protocol constants -------------------------------------------------------
+ set SPLIT=1
+-set GDIR=data\AMAZON\metapath_graphs_all_unique
+-set OUT=output\AMAZON
+-set LOGDIR=logs\Final 5
++set GDIR=data\AMAZON\metapath_graphs_rebuilt
++set OUT=output\AMAZON\rebuilt
++set LOGDIR=logs\Final 6
+ if not exist "%LOGDIR%" mkdir "%LOGDIR%"
++if not exist "%OUT%" mkdir "%OUT%"
++REM leave-fold-out training graphs (README "Self-inclusion"): 0 = off, the config of
++REM record. Set e.g. 10 to run the robustness check; build then adds the fold graphs.
++set FOLDS=0
++REM runs with folds get their own blob names (_kf<K>), so they neither skip nor overwrite
++REM the config-of-record runs, and summarize_results.py lists them as a separate preset
++set KF=
++if not "%FOLDS%"=="0" set KF=_kf%FOLDS%
+ 
+ set COMMON=--dataset AMAZON --split-seed %SPLIT%
+-set HAN_REC=%COMMON% --graph-dir %GDIR% --stage 150 --patience 10 --beta-warmup 15
+-set HAN_PAPER=%COMMON% --graph-dir %GDIR% --paper-config --stage 200
++set BUILD=--dataset AMAZON --topk 20 --split-seed %SPLIT% --graph-dir %GDIR% --skip-existing --kfold %FOLDS%
++set HAN_REC=%COMMON% --graph-dir %GDIR% --stage 150 --patience 10 --beta-warmup 15 --graph-kfold %FOLDS%
++set HAN_PAPER=%COMMON% --graph-dir %GDIR% --paper-config --stage 200 --graph-kfold %FOLDS%
+ set M2V_FAST=%COMMON% --epochs 10 --evals-per-epoch 4 --patience 6
+ set M2V_PAPER=%COMMON% --paper-walks --epochs 3 --evals-per-epoch 4 --patience 6
+-set GAT_REC=%COMMON% --stage 150 --patience 10
+-
+-set SHORTLIST=amazon_lp_f4_s1 amazon_lp_f4_s2 amazon_lp_f4_s3 amazon_lp_f4_s4 amazon_lp_f4_s5 amazon_lp_f4_s6 amazon_lp_f6_s1 amazon_lp_f6_s2 amazon_lp_f6_s3 amazon_lp_f6_s4 amazon_lp_f6_s5 amazon_lp_f6_s6 amazon_lp_f6_s7
+-set ABLATION=amazon_lp_manual amazon_lp_random4_s0 amazon_lp_random6_s0
+-set HEADLINE=amazon_lp_f4_c amazon_lp_f6_s1 amazon_lp_manual
+-REM amazon_lp_f4_c is an alias of amazon_lp_f4_s1 (same paths); its seed-1 run comes
+-REM from the sweep, so "seeds" only adds seeds 2 and 3 for it.
++set GAT_REC=%COMMON% --stage 150 --patience 10 --graph-kfold %FOLDS%
++
++REM SHORTLIST: the rerun's sets (LMSPS reselect_fleet.py averaged one-SE sets), added to
++REM arch.py first. The Fleet v2 keys amazon_lp_f4_* / amazon_lp_f6_* are from the old
++REM data and search; do not list them here.
++set SHORTLIST=
++set MANUAL=amazon_lp_m5 amazon_lp_m6 amazon_lp_m7
++set MANUAL_EXTRA=amazon_lp_m1 amazon_lp_m2 amazon_lp_m3 amazon_lp_m4 amazon_lp_m8
++set RANDOM=amazon_lp_pool4_s0 amazon_lp_pool4_s1 amazon_lp_pool4_s2 amazon_lp_pool6_s0 amazon_lp_pool6_s1 amazon_lp_pool6_s2
++set ABLATION=%MANUAL% %RANDOM%
++REM headline rows get seeds 2 and 3: the manual references here, the best discovered
++REM key per ns as arguments ("run_all.bat seeds <ns4 key> <ns6 key>")
++set HEADLINE=%MANUAL%
+ 
+ REM ---- dispatch ------------------------------------------------------------------
+-if /i "%STAGE%"=="dry"       ( call :build & call :audit & call :han & call :m2v & call :gat & call :seeds %2 %3 %4 %5 & call :m2v_paper & call :han_paper & call :summarize & goto :done )
+-if /i "%STAGE%"=="all"       ( call :build & call :audit & call :han & call :m2v & call :gat & call :seeds %2 %3 %4 %5 & call :m2v_paper & call :han_paper & call :summarize & goto :done )
++if /i "%STAGE%"=="dry"       ( call :build & call :audit & call :popularity & call :han & call :m2v & call :gat & call :seeds %2 %3 %4 %5 & call :m2v_paper & call :han_paper & call :han_extra & call :summarize & goto :done )
++if /i "%STAGE%"=="all"       ( call :build & call :audit & call :popularity & call :han & call :m2v & call :gat & call :seeds %2 %3 %4 %5 & call :m2v_paper & call :han_paper & call :summarize & goto :done )
+ if /i "%STAGE%"=="build"     ( call :build & goto :done )
+ if /i "%STAGE%"=="audit"     ( call :audit & goto :done )
++if /i "%STAGE%"=="popularity" ( call :popularity & goto :done )
+ if /i "%STAGE%"=="han"       ( call :han & goto :done )
++if /i "%STAGE%"=="han_extra" ( call :han_extra & goto :done )
+ if /i "%STAGE%"=="m2v"       ( call :m2v & goto :done )
+ if /i "%STAGE%"=="gat"       ( call :gat & goto :done )
+ if /i "%STAGE%"=="seeds"     ( call :seeds %2 %3 %4 %5 & goto :done )
+@@ -84,22 +106,37 @@ exit /b 0
+ 
+ REM =============================== stages =====================================
+ :build
+-echo === build: manual + random ablation paths into %GDIR%
+-for %%A in (%ABLATION%) do (
+-    call :exec "build_%%A" %PY% build_metapath_graphs.py --dataset AMAZON --arch %%A --topk 20 --split-seed %SPLIT% --graph-dir %GDIR% --skip-existing
++echo === build: every path of every key into %GDIR%
++if "%SHORTLIST%"=="" echo   WARNING: SHORTLIST is empty -- add the rerun's discovered keys first
++for %%A in (%SHORTLIST% %ABLATION% %MANUAL_EXTRA%) do (
++    call :exec "build_%%A" %PY% build_metapath_graphs.py %BUILD% --arch %%A
+ )
+ goto :eof
+ 
+ :audit
+ echo === audit
+ call :exec "audit_graph_bias" %PY% check_graph_bias.py %GDIR%
+-call :exec "audit_edition_twins" %PY% check_edition_twins.py --split-seed %SPLIT% --products-csv output/AMAZON/Filtered_Output/filtered_products.csv
++REM after the rebuild the twin share should be ~0 (editions are merged); this checks it
++call :exec "audit_edition_twins" %PY% check_edition_twins.py --split-seed %SPLIT%
++goto :eof
++
++:popularity
++echo === popularity baseline
++call :train popularity_s1 %PY% popularity_baseline.py %COMMON% --seed 1
+ goto :eof
+ 
+ :han
+ echo === han: config of record, seed 1
++if "%SHORTLIST%"=="" echo   WARNING: SHORTLIST is empty -- only the manual and random rows run
+ for %%A in (%SHORTLIST% %ABLATION%) do (
+-    call :train han_%%A_s1 %PY% train_han.py %HAN_REC% --arch %%A --seed 1
++    call :train han_%%A_s1%KF% %PY% train_han.py %HAN_REC% --arch %%A --seed 1
++)
++goto :eof
++
++:han_extra
++echo === han_extra: the other manual sets, seed 1
++for %%A in (%MANUAL_EXTRA%) do (
++    call :train han_%%A_s1%KF% %PY% train_han.py %HAN_REC% --arch %%A --seed 1
+ )
+ goto :eof
+ 
+@@ -113,7 +150,7 @@ goto :eof
+ :gat
+ echo === gat: seeds 1 2 3
+ for %%S in (1 2 3) do (
+-    call :train gat_union_s%%S %PY% train_gat.py %GAT_REC% --seed %%S
++    call :train gat_union_s%%S%KF% %PY% train_gat.py %GAT_REC% --seed %%S
+ )
+ goto :eof
+ 
+@@ -121,7 +158,7 @@ goto :eof
+ echo === seeds: HAN seeds 2 3 on headline keys %HEADLINE% %*
+ for %%A in (%HEADLINE% %*) do (
+     for %%S in (2 3) do (
+-        call :train han_%%A_s%%S %PY% train_han.py %HAN_REC% --arch %%A --seed %%S
++        call :train han_%%A_s%%S%KF% %PY% train_han.py %HAN_REC% --arch %%A --seed %%S
+     )
+ )
+ goto :eof
+@@ -138,7 +175,7 @@ goto :eof
+ :han_paper
+ echo === han_paper: --paper-config, seed 1, headline keys
+ for %%A in (%HEADLINE%) do (
+-    call :train han_%%A_s1_paper %PY% train_han.py %HAN_PAPER% --arch %%A --seed 1
++    call :train han_%%A_s1_paper%KF% %PY% train_han.py %HAN_PAPER% --arch %%A --seed 1
+ )
+ goto :eof
+ 
+diff --git a/summarize_results.py b/summarize_results.py
+index 54922d8..f3ae013 100644
+--- a/summarize_results.py
++++ b/summarize_results.py
+@@ -5,7 +5,7 @@ Collect every saved embedding blob (*_emb*.pt written by train_han.py,
+ train_metapath2vec.py, train_gat.py) into one results table.
+ 
+ Per blob: model, arch key (config.arch, else the path list), split seed, run
+-seed, preset flags (--paper-config / --paper-walks), best epoch, best VAL BPR,
++seed, preset flags (--paper-config / --paper-walks / --graph-kfold), best epoch, best VAL BPR,
+ and per-edge Hit@10 / NDCG@10 overall, on "twin in train" test edges and on
+ "no twin in train" edges (see link_data.product_twin_groups). Blobs written
+ before 2026-10-23 lack metrics_twin / best_val_loss and show '-'; rerun
+@@ -47,6 +47,8 @@ def row_from_blob(path, blob):
+         preset.append('paper-config')
+     if cfg.get('paper_walks'):
+         preset.append('paper-walks')
++    if cfg.get('graph_kfold'):
++        preset.append(f"kfold{cfg['graph_kfold']}")   # leave-fold-out training graphs
+     m = blob.get('metrics') or {}
+     tw = blob.get('metrics_twin') or {}
+     twin = tw.get('twin in train', {})
+diff --git a/tests/test_graphs.py b/tests/test_graphs.py
+new file mode 100644
+index 0000000..c67c1c2
+--- /dev/null
++++ b/tests/test_graphs.py
+@@ -0,0 +1,208 @@
++"""Graph construction, leave-fold-out graphs, the stale-graph guard and the baselines.
++
++    python tests/test_graphs.py      (or: python -m pytest tests)
++
++Writes a small random AMAZON-like dataset in HGB format (node.dat / link.dat /
++label.dat) to a temporary directory and runs the real scripts on it. CPU only.
++"""
++import os
++import subprocess
++import sys
++import tempfile
++
++import numpy as np
++import scipy.sparse as sp
++
++REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
++sys.path.insert(0, REPO)
++from build_metapath_graphs import build_base_matrices, fold_base, materialize_path  # noqa: E402
++from data_loader import data_loader                                                # noqa: E402
++from link_data import build_link_split, edges_fingerprint, train_folds             # noqa: E402
++
++N_P, N_C, N_U = 120, 12, 60
++
++
++def _write_dataset(root, seed=0):
++    """AMAZON layout: types 0=P 1=C 2=U; relations 0/1 P-P, 2/3 C-C, 4/5 P-C, 6/7 U-P."""
++    rng = np.random.default_rng(seed)
++    d = os.path.join(root, 'AMAZON')
++    os.makedirs(d, exist_ok=True)
++    shift = {0: 0, 1: N_P, 2: N_P + N_C}
++    with open(os.path.join(d, 'node.dat'), 'w', encoding='utf-8') as f:
++        for t, n, dim in ((0, N_P, 4), (1, N_C, 3), (2, N_U, 2)):
++            for i in range(n):
++                f.write(f'{shift[t] + i}\tn{t}_{i}\t{t}\t' + ','.join(f'{x:.3f}' for x in rng.random(dim)) + '\n')
++    rel = {r: set() for r in range(8)}
++    for _ in range(150):
++        a, b = rng.integers(0, N_P, 2)
++        if a != b:
++            rel[0].add((a, b))
++    for c in range(1, N_C):                               # a tree: parent of c is c // 2
++        rel[2].add((c // 2, c))
++    for p in range(N_P):
++        for c in rng.choice(np.arange(N_C // 2, N_C), size=2, replace=False):   # leaves only
++            rel[4].add((p, c))
++    for u in range(N_U):
++        for p in rng.choice(N_P, size=8, replace=False):
++            rel[6].add((u, p))
++    types = {0: (0, 0), 2: (1, 1), 4: (0, 1), 6: (2, 0)}
++    with open(os.path.join(d, 'link.dat'), 'w', encoding='utf-8') as f:
++        for r in (0, 2, 4, 6):
++            ht, tt = types[r]
++            for h, t in sorted(rel[r]):
++                f.write(f'{shift[ht] + h}\t{shift[tt] + t}\t{r}\t1.0\n')
++            for h, t in sorted(rel[r]):                    # reverse relation r + 1
++                f.write(f'{shift[tt] + t}\t{shift[ht] + h}\t{r + 1}\t1.0\n')
++    for name, ids in (('label.dat', range(0, N_P, 2)), ('label.dat.test', range(1, N_P, 2))):
++        with open(os.path.join(d, name), 'w', encoding='utf-8') as f:
++            for i in ids:
++                f.write(f'{i}\tn0_{i}\t0\t{i % 3}\n')
++    return root
++
++
++def _build(root, out, *flags):
++    subprocess.run([sys.executable, os.path.join(REPO, 'build_metapath_graphs.py'), '--root', root,
++                    '--paths', 'PUP,PCP,PUPUP', '--graph-dir', out, *flags],
++                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
++
++
++def _split(root, seed=1):
++    dl = data_loader(os.path.join(root, 'AMAZON'))
++    return dl, build_link_split(dl, 2, 0, seed=seed)
++
++
++def test_train_folds():
++    a, b = train_folds(1000, 4, 1), train_folds(1000, 4, 1)
++    assert np.array_equal(a, b) and set(a.tolist()) == {0, 1, 2, 3}
++    assert not np.array_equal(a, train_folds(1000, 4, 2))
++    assert np.bincount(a).min() > 200                           # roughly balanced
++
++
++def test_edges_fingerprint():
++    e = np.array([[0, 1], [2, 3], [4, 5]])
++    assert edges_fingerprint(e) == edges_fingerprint(e[::-1])   # order-free
++    assert edges_fingerprint(e) != edges_fingerprint(np.array([[0, 1], [2, 3], [4, 6]]))
++
++
++def test_kfold_leaves_full_graphs_unchanged():
++    """--kfold adds fold graphs for paths through U only and leaves every full graph
++    byte-identical to a build without it."""
++    with tempfile.TemporaryDirectory() as tmp:
++        root = _write_dataset(tmp)
++        _build(root, os.path.join(tmp, 'plain'))
++        _build(root, os.path.join(tmp, 'folds'), '--kfold', '3')
++        for p in ('PUP', 'PCP', 'PUPUP'):
++            a = sp.load_npz(os.path.join(tmp, 'plain', f'{p}_top20_split1.npz'))
++            b = sp.load_npz(os.path.join(tmp, 'folds', f'{p}_top20_split1.npz'))
++            assert all(np.array_equal(getattr(a, k), getattr(b, k)) for k in ('indptr', 'indices', 'data')), p
++            has_folds = os.path.isfile(os.path.join(tmp, 'folds', f'{p}_top20_split1_fold0of3.npz'))
++            assert has_folds == ('U' in p), p
++
++
++def test_fold_graph_is_built_without_its_fold():
++    """Fold f's graph equals the graph of the training edges outside fold f: none of
++    fold f's edges is in the U-P matrix it was built from."""
++    with tempfile.TemporaryDirectory() as tmp:
++        root = _write_dataset(tmp)
++        _build(root, os.path.join(tmp, 'g'), '--kfold', '3')
++        dl, ls = _split(root)
++        base = build_base_matrices(dl, 'AMAZON', ls)
++        tr = ls['train_edges']
++        fold = train_folds(len(tr), 3, 1)
++        for f in range(3):
++            b = fold_base(base, ls, fold != f)
++            up = b['UP'].tocsr()
++            assert np.asarray(up[tr[fold == f, 0], tr[fold == f, 1]]).max() == 0, 'fold edge in its own graph'
++            assert np.asarray(up[tr[fold != f, 0], tr[fold != f, 1]]).min() == 1, 'other folds missing'
++            assert (b['PU'] != up.T).nnz == 0
++            for p in ('PUP', 'PUPUP'):
++                want = materialize_path(p, b, 20, rng=np.random.default_rng(1))
++                got = sp.load_npz(os.path.join(tmp, 'g', f'{p}_top20_split1_fold{f}of3.npz'))
++                assert (want != got).nnz == 0, (p, f)
++
++
++def test_loader_refuses_graphs_from_other_data():
++    """train_han.load_metapath_graphs refuses graphs whose sidecar disagrees with the run:
++    another split, another fold, another dataset; a legacy sidecar still loads."""
++    import json
++    from train_han import load_metapath_graphs
++    with tempfile.TemporaryDirectory() as tmp:
++        root = _write_dataset(tmp)
++        g = os.path.join(tmp, 'g')
++        _build(root, g, '--kfold', '3')
++        _, ls = _split(root)
++        tr = ls['train_edges']
++        fold = train_folds(len(tr), 3, 1)
++
++        def load(edges, fold_id=None, n=N_P, seed=1):
++            return load_metapath_graphs(g, ['PUP', 'PCP'], 20, seed, n, 'cpu', edges,
++                                        fold=None if fold_id is None else (fold_id, 3))
++
++        def refused(*a, **kw):
++            try:
++                load(*a, **kw)
++            except SystemExit:
++                return True
++            return False
++
++        assert len(load(tr)) == 2
++        assert load(tr[fold != 1], fold_id=1)[1] is None         # PCP has no fold graphs
++        _, other = _split(root, seed=2)
++        assert len(other['train_edges']) == len(tr)
++        assert refused(other['train_edges'])                      # another split, same count
++        assert refused(tr[fold != 2], fold_id=1)                  # another fold's edges
++        assert refused(tr, n=N_P + 1)                             # another dataset
++        # split-1 graphs copied under split 2's names, sidecars edited to match: the
++        # training-edge hash still tells them apart
++        for p in ('PUP', 'PCP'):
++            meta = json.load(open(os.path.join(g, f'{p}_top20_split1.meta.json'), encoding='utf-8'))
++            meta['split_seed'] = 2
++            json.dump(meta, open(os.path.join(g, f'{p}_top20_split2.meta.json'), 'w', encoding='utf-8'))
++            sp.save_npz(os.path.join(g, f'{p}_top20_split2.npz'), sp.load_npz(os.path.join(g, f'{p}_top20_split1.npz')))
++        assert refused(other['train_edges'], seed=2)
++        meta_file = os.path.join(g, 'PUP_top20_split1.meta.json')
++        meta = json.load(open(meta_file, encoding='utf-8'))
++        for k in ('num_train_edges', 'train_edges_hash'):
++            meta.pop(k)                                           # legacy sidecar: loads, warns
++        json.dump(meta, open(meta_file, 'w', encoding='utf-8'))
++        assert len(load(tr)) == 2
++
++
++def test_popularity_baseline():
++    """Training degree decides the order; equal degrees are ordered by the seeded key."""
++    from popularity_baseline import popularity_scores
++    with tempfile.TemporaryDirectory() as tmp:
++        _, ls = _split(_write_dataset(tmp))
++        deg = np.asarray(ls['train_adj_src2dst'].sum(axis=0)).ravel()
++        s = popularity_scores(ls, 1)
++        assert np.array_equal(np.floor(s), deg)                   # the key never crosses a count
++        assert len(np.unique(s)) == len(s)                        # every tie broken
++        assert np.array_equal(s, popularity_scores(ls, 1)) and not np.array_equal(s, popularity_scores(ls, 2))
++
++
++def test_own_share():
++    """check_self_inclusion.own_share: product 0's neighbours {1, 3}, user 0's items {0, 1, 2}
++    -> half of the neighbours are the user's; product 2 has no neighbour -> 0."""
++    from check_self_inclusion import own_share
++    g = sp.csr_matrix((np.ones(4), ([0, 0, 1, 3], [1, 3, 0, 0])), shape=(4, 4))
++    items = sp.csr_matrix((np.ones(3), ([0, 0, 0], [0, 1, 2])), shape=(1, 4))
++    share, anyhit = own_share(g, items, np.array([[0, 0], [0, 2]]))
++    assert abs(share - 0.25) < 1e-9 and abs(anyhit - 0.5) < 1e-9, (share, anyhit)
++
++
++def test_random_pool_matches_the_search_space():
++    """--pool draws from LMSPS's candidates: 55 target-ended paths of 2-6 letters, 36 after
++    reverse dedupe (17 palindromes), every one schema-valid."""
++    from random_paths import SCHEMA, candidate_pool
++    pool = candidate_pool()
++    assert len(pool) == 36 and sum(p == p[::-1] for p in pool) == 17
++    assert all(p == min(p, p[::-1]) and p[0] == p[-1] == 'P' for p in pool)
++    assert all(b in SCHEMA[a] for p in pool for a, b in zip(p, p[1:]))
++    assert {'PP', 'PCP', 'PUP', 'PUPUP'} <= set(pool)
++
++
++if __name__ == '__main__':
++    for name, fn in list(globals().items()):
++        if name.startswith('test_'):
++            fn()
++            print('ok', name)
+diff --git a/train_gat.py b/train_gat.py
+index 4346c88..d9220f7 100644
+--- a/train_gat.py
++++ b/train_gat.py
+@@ -23,6 +23,11 @@ saves the shared embedding format for recommend.py.
+ 
+     python train_gat.py --dataset AMAZON --split-seed 1 --stage 150 --patience 10
+ 
++--graph-kfold K (opt-in): the training U-P edges are also message-passing edges, so a user's
++embedding aggregates the very product it is scored against. With K folds, fold f's
++training edges are scored on the union graph without fold f's U-P edges (the same
++folds as train_han.py --graph-kfold); val/test use all training edges.
++
+ VRAM: ~8M edges x 8 heads x 2 layers peaks around 8-10 GB on the default config,
+ close to a 12 GB card's limit; sustained near-limit pressure is what killed long
+ runs with sporadic CUDA illegal-memory-access errors. --num-heads 4 halves every
+@@ -44,13 +49,14 @@ import uuid
+ os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'max_split_size_mb:256')
+ 
+ import numpy as np
++import scipy.sparse as sp
+ import torch
+ import torch.nn as nn
+ from torch.utils.checkpoint import checkpoint
+ from tqdm import tqdm
+ 
+ from data_loader import data_loader
+-from link_data import build_link_split, TrainEdgeSampler
++from link_data import build_link_split, TrainEdgeSampler, train_folds
+ from model_han import GATLayer
+ from han_utils import (NODE_TYPE_IDS, bpr_loss, score_edges, evaluate_ranking,
+                        set_random_seed, get_n_params,
+@@ -89,9 +95,10 @@ class HomoGAT(nn.Module):
+         return x                                            # [N_total, hidden]
+ 
+ 
+-def build_union_edges(dl, type_ids, src_name, dst_name, link_split, device):
++def build_union_edges(dl, type_ids, src_name, dst_name, link_split, device, train_adj=None):
+     """All context relations on GLOBAL ids + train-only target edges + self-loops.
+-    Every relation in link.dat already has its reverse stored, so no transposing."""
++    Every relation in link.dat already has its reverse stored, so no transposing.
++    train_adj replaces the training adjacency (--graph-kfold: one fold left out)."""
+     target_pair = {type_ids[src_name], type_ids[dst_name]}
+     srcs, dsts = [], []
+     for r, (h, t) in dl.links['meta'].items():
+@@ -101,7 +108,7 @@ def build_union_edges(dl, type_ids, src_name, dst_name, link_split, device):
+         srcs.append(coo.row.astype(np.int64))
+         dsts.append(coo.col.astype(np.int64))
+ 
+-    tr = link_split['train_adj_src2dst'].tocoo()
++    tr = (link_split['train_adj_src2dst'] if train_adj is None else train_adj).tocoo()
+     u = tr.row.astype(np.int64) + dl.nodes['shift'][type_ids[src_name]]
+     p = tr.col.astype(np.int64) + dl.nodes['shift'][type_ids[dst_name]]
+     srcs += [u, p]
+@@ -141,6 +148,22 @@ def main(args):
+                                   seed=args.split_seed, num_neg_eval=args.num_neg_eval)
+ 
+     edges = build_union_edges(dl, type_ids, src_name, dst_name, link_split, device)
++    K = args.graph_kfold
++    if K:
++        # fold f's training edges are scored on the union graph without them; those
++        # graphs wait in CPU memory and move to the device for their own steps only
++        tr_edges = link_split['train_edges']
++        fold = train_folds(len(tr_edges), K, args.split_seed)
++        fold_edges, fold_samplers = [], []
++        for f in range(K):
++            keep = tr_edges[fold != f]
++            adj = sp.csr_matrix((np.ones(len(keep), dtype=np.float32), (keep[:, 0], keep[:, 1])),
++                                shape=link_split['train_adj_src2dst'].shape)
++            e = build_union_edges(dl, type_ids, src_name, dst_name, link_split, 'cpu', train_adj=adj)
++            fold_edges.append(e if args.cpu else (e[0].pin_memory(), e[1].pin_memory()))
++            # negatives still avoid ALL training positives, exactly as without folds
++            fold_samplers.append(TrainEdgeSampler(tr_edges[fold == f], link_split['train_adj_src2dst'],
++                                                  seed=args.seed + 7919 * (f + 1)))
+ 
+     n_types = len(dl.nodes['count'])
+     type_feats = []
+@@ -181,6 +204,7 @@ def main(args):
+     train_times = []
+     epochs_run = 0
+     iter_num = train_sampler.num_batches(args.batch_size)
++    step = 0
+ 
+     for epoch in tqdm(range(args.stage)):
+         epochs_run = epoch + 1
+@@ -189,9 +213,17 @@ def main(args):
+         start = time.time()
+         total = 0.0
+         for _ in range(iter_num):
+-            src, pos_dst, neg_dst = train_sampler.sample_batch(args.batch_size)
++            if K:
++                # one fold per step, in turn: same number of steps and edges per epoch
++                src, pos_dst, neg_dst = fold_samplers[step % K].sample_batch(args.batch_size)
++                e = fold_edges[step % K]
++                step_edges = (e[0].to(device, non_blocking=True), e[1].to(device, non_blocking=True))
++            else:
++                src, pos_dst, neg_dst = train_sampler.sample_batch(args.batch_size)
++                step_edges = edges
++            step += 1
+             optimizer.zero_grad()
+-            x = model(edges, type_feats)
++            x = model(step_edges, type_feats)
+             src_emb = x[src.to(device) + u_lo]
+             pos_emb = x[pos_dst.to(device) + p_lo]
+             neg_emb = x[neg_dst.to(device) + p_lo]
+@@ -202,7 +234,7 @@ def main(args):
+         train_times.append(time.time() - start)
+         # release the last training batch's tensors before the val forward --
+         # x alone is [N, hidden] ~ 620 MB and the card runs near its limit
+-        x = src_emb = pos_emb = neg_emb = loss = None
++        x = src_emb = pos_emb = neg_emb = loss = step_edges = None
+         if not args.cpu:
+             torch.cuda.empty_cache()
+ 
+@@ -286,7 +318,13 @@ def parse_args():
+     ap.add_argument('--root', type=str, default='data')
+     ap.add_argument('--dataset', type=str, default='AMAZON')
+     ap.add_argument('--target-relation', type=str, default='U,P')
+-    ap.add_argument('--split-seed', type=int, default=0)
++    ap.add_argument('--split-seed', type=int, default=1,
++                    help='must match the search/build --split-seed (the LMSPS fleets use 1)')
++    ap.add_argument('--graph-kfold', type=int, default=0,
++                    help='score each fold of the training edges on the union graph without that '
++                         'fold\'s U-P edges (same folds as train_han.py). Needs room for one more '
++                         'union edge list on the device. 0 = every training edge is a message edge '
++                         'of the graph that scores it')
+     ap.add_argument('--num-neg-eval', type=int, default=99)
+     ap.add_argument('--in-dim', type=int, default=256,
+                     help='per-type projection dim before the first GAT layer')
+diff --git a/train_han.py b/train_han.py
+index 13200e7..a2cdfc7 100644
+--- a/train_han.py
++++ b/train_han.py
+@@ -14,10 +14,15 @@ Prerequisites:
+            --target-relation "U,P" --num-hops 3 --ns 5 --tgt-ended-paths ...
+   2. Materialize the discovered paths as graphs:
+        python build_metapath_graphs.py --dataset AMAZON --paths <paths> \
+-           --topk 20 --split-seed 0
++           --topk 20 --split-seed 1
+   3. This script:
+-       python train_han.py --dataset AMAZON --paths <paths> --split-seed 0
++       python train_han.py --dataset AMAZON --paths <paths> --split-seed 1
+      (or --arch amazon_lp_han to read the path list from arch.py)
++
++--graph-kfold K (opt-in) trains each fold of the training edges on graphs built without
++that fold (build_metapath_graphs.py --kfold K): otherwise a training edge (u, p) sits
++inside p's own PUP neighbourhood, a signal no held-out edge has. Val/test use the full
++graphs. See README "Self-inclusion" for when it helps and when it hurts.
+ """
+ 
+ import argparse
+@@ -40,7 +45,7 @@ import torch
+ from tqdm import tqdm
+ 
+ from data_loader import data_loader
+-from link_data import build_link_split, TrainEdgeSampler
++from link_data import build_link_split, TrainEdgeSampler, edges_fingerprint, train_folds
+ from model_han import HAN_LP, ShallowNodeTower, UserEmbeddingTower
+ from han_utils import (NODE_TYPE_IDS, bpr_loss, score_edges, evaluate_ranking,
+                        evaluate_ranking_stratified, print_stratified,
+@@ -48,33 +53,61 @@ from han_utils import (NODE_TYPE_IDS, bpr_loss, score_edges, evaluate_ranking,
+                        set_random_seed, get_n_params, report_twin_breakdown)
+ 
+ 
+-def load_metapath_graphs(graph_dir, paths, topk, split_seed, num_nodes, device):
++def load_metapath_graphs(graph_dir, paths, topk, split_seed, num_nodes, device,
++                         train_edges, fold=None, src_name='U'):
++    """One (src, dst) edge list per path, self-loops appended. fold = (f, K) loads the
++    leave-fold-out graphs of build_metapath_graphs.py --kfold K; a path that never
++    visits src_name has none, and None stands in for it (the full graph applies).
++    train_edges: the training edges the graphs must have been built from. Graph files
++    are named by path/top-k/split only, so a graph left over from another version of
++    the data (or copied from another split) would otherwise load silently: a sidecar
++    that disagrees with the data on any recorded field stops the run."""
++    expect = {'num_nodes': num_nodes, 'topk': topk, 'split_seed': split_seed,
++              'num_train_edges': len(train_edges), 'train_edges_hash': edges_fingerprint(train_edges)}
++    if fold is not None:
++        expect.update(fold=fold[0], kfold=fold[1])
+     graphs = []
+     loop = torch.arange(num_nodes, dtype=torch.long)
+     for p in paths:
++        if fold is not None and src_name not in p:
++            graphs.append(None)
++            continue
+         stem = os.path.join(graph_dir, f'{p}_top{topk}_split{split_seed}')
++        if fold is not None:
++            stem += f'_fold{fold[0]}of{fold[1]}'
+         fname = stem + '.npz'
+         if not os.path.isfile(fname):
+             raise SystemExit(f'missing {fname} -- run build_metapath_graphs.py first '
+-                             f'with the same --paths/--topk/--split-seed')
+-        adj = sp.load_npz(fname).tocoo()
+-        # (src, dst) edge list with self-loops appended; pure torch tensors, so the
+-        # CPU-only dgl wheel in this env is never asked to move a graph to CUDA
+-        src = torch.cat([torch.from_numpy(adj.row.astype(np.int64)), loop]).to(device)
+-        dst = torch.cat([torch.from_numpy(adj.col.astype(np.int64)), loop]).to(device)
+-        graphs.append((src, dst))
+-        # provenance sidecar written by build_metapath_graphs.py (tie-break mode)
++                             f'with the same --paths/--topk/--split-seed'
++                             + (f' and --kfold {fold[1]}' if fold is not None else ''))
++        # provenance sidecar written by build_metapath_graphs.py (tie-break mode, counts)
+         meta_file = stem + '.meta.json'
+         if os.path.isfile(meta_file):
+             with open(meta_file, encoding='utf-8') as f:
+                 meta = json.load(f)
++            for key, want in expect.items():
++                if key in meta and meta[key] != want:
++                    raise SystemExit(f'{fname}: its sidecar records {key} = {meta[key]}, this run '
++                                     f'needs {want} -- built from other data, another split or '
++                                     f'another fold; rebuild it with build_metapath_graphs.py')
+             prov = f"tie-break {meta.get('tie_break')}"
+             if meta.get('tie_seed') is not None:
+                 prov += f" (seed {meta['tie_seed']})"
++            if 'train_edges_hash' not in meta:
++                prov += '; WARNING: sidecar predates the data check -- rebuild if the data changed'
+         else:
+             prov = ('WARNING: no .meta.json -- legacy graph built with the id tie-break '
+                     '(low-id products become hubs); rebuild with build_metapath_graphs.py')
+-        print(f'  {p}: {src.numel()} edges (incl. self-loops); {prov}')
++        adj = sp.load_npz(fname).tocoo()
++        if adj.shape != (num_nodes, num_nodes):
++            raise SystemExit(f'{fname} is {adj.shape[0]}x{adj.shape[1]}, the data has {num_nodes} '
++                             f'target nodes -- rebuild it')
++        # (src, dst) edge list with self-loops appended; pure torch tensors, so the
++        # CPU-only dgl wheel in this env is never asked to move a graph to CUDA
++        src = torch.cat([torch.from_numpy(adj.row.astype(np.int64)), loop]).to(device)
++        dst = torch.cat([torch.from_numpy(adj.col.astype(np.int64)), loop]).to(device)
++        graphs.append((src, dst))
++        print(f'  {os.path.basename(stem)}: {src.numel()} edges (incl. self-loops); {prov}')
+     return graphs
+ 
+ 
+@@ -154,11 +187,35 @@ def main(args):
+ 
+     graph_dir = args.graph_dir or os.path.join(args.root, args.dataset, 'metapath_graphs')
+     print(f'Loading meta-path graphs from {graph_dir}:')
++    n_train = len(link_split['train_edges'])
+     graphs = load_metapath_graphs(graph_dir, paths, args.topk, args.split_seed,
+-                                  link_split['num_dst'], device)
++                                  link_split['num_dst'], device, link_split['train_edges'])
+ 
+     train_sampler = TrainEdgeSampler(link_split['train_edges'],
+                                      link_split['train_adj_src2dst'], seed=args.seed)
++    K = args.graph_kfold
++    if K:
++        # fold f's training edges are scored on graphs built without them; the fold
++        # graphs wait in CPU memory and move to the device for their own steps only
++        fold = train_folds(n_train, K, args.split_seed)
++        fold_graphs, fold_samplers = [], []
++        for f in range(K):
++            gs = load_metapath_graphs(graph_dir, paths, args.topk, args.split_seed,
++                                      link_split['num_dst'], 'cpu',
++                                      link_split['train_edges'][fold != f],
++                                      fold=(f, K), src_name=src_name)
++            if not args.cpu:
++                gs = [None if g is None else (g[0].pin_memory(), g[1].pin_memory()) for g in gs]
++            fold_graphs.append(gs)
++            # negatives still avoid ALL training positives, exactly as without folds
++            fold_samplers.append(TrainEdgeSampler(link_split['train_edges'][fold == f],
++                                                  link_split['train_adj_src2dst'],
++                                                  seed=args.seed + 7919 * (f + 1)))
++
++        def graphs_for(f):
++            return [full if g is None else (g[0].to(device, non_blocking=True),
++                                            g[1].to(device, non_blocking=True))
++                    for full, g in zip(graphs, fold_graphs[f])]
+     val_edges = torch.LongTensor(link_split['val_edges']).to(device)
+     val_negs = torch.LongTensor(link_split['val_negs']).to(device)
+     test_edges = torch.LongTensor(link_split['test_edges']).to(device)
+@@ -192,6 +249,7 @@ def main(args):
+     train_times = []
+     epochs_run = 0
+     iter_num = train_sampler.num_batches(args.batch_size)
++    step = 0
+     assert args.beta_warmup < args.stage, '--beta-warmup must leave post-warmup epochs to train/checkpoint in'
+ 
+     for epoch in tqdm(range(args.stage)):
+@@ -205,11 +263,18 @@ def main(args):
+         start = time.time()
+         total = 0.
+         for _ in range(iter_num):
+-            src, pos_dst, neg_dst = train_sampler.sample_batch(args.batch_size)
++            if K:
++                # one fold per step, in turn: same number of steps and edges per epoch
++                src, pos_dst, neg_dst = fold_samplers[step % K].sample_batch(args.batch_size)
++                step_graphs = graphs_for(step % K)
++            else:
++                src, pos_dst, neg_dst = train_sampler.sample_batch(args.batch_size)
++                step_graphs = graphs
++            step += 1
+             optimizer.zero_grad()
+             # full-graph forward: GAT embeddings depend on neighbors, so the whole
+             # target-type graph is encoded once per step (90k nodes is cheap on GPU)
+-            dst_emb, _ = model(graphs, p_feat)
++            dst_emb, _ = model(step_graphs, p_feat)
+             src_emb = user_emb_batch(src.to(device))
+             pos_emb = dst_emb[pos_dst.to(device)]
+             neg_emb = dst_emb[neg_dst.to(device)]
+@@ -321,8 +386,15 @@ def parse_args():
+                          '<root>/<dataset>/metapath_graphs). Graph files are per path, so one '
+                          'directory with every path built (e.g. data/AMAZON/metapath_graphs_all_unique) '
+                          'serves every --arch without renaming folders')
+-    ap.add_argument('--split-seed', type=int, default=0,
+-                    help='must match the search/retrain/build --split-seed')
++    ap.add_argument('--split-seed', type=int, default=1,
++                    help='must match the search/build --split-seed (the LMSPS fleets use 1)')
++    ap.add_argument('--graph-kfold', type=int, default=0,
++                    help='score each fold of the training edges on graphs built without it '
++                         '(build_metapath_graphs.py --kfold K first). Fold graphs stay in CPU memory '
++                         'and the current fold\'s user paths move to the device per step (one extra '
++                         'copy of those graphs on the GPU). 0 = every training edge is scored on the '
++                         'graph that contains it (the user\'s own items then sit in the positive '
++                         'product\'s neighbourhood, unlike for any val/test edge)')
+     ap.add_argument('--num-neg-eval', type=int, default=99)
+     ap.add_argument('--hidden', type=int, default=512)
+     ap.add_argument('--num-heads', type=int, default=8)
+diff --git a/train_metapath2vec.py b/train_metapath2vec.py
+index 9f75658..590d619 100644
+--- a/train_metapath2vec.py
++++ b/train_metapath2vec.py
+@@ -16,7 +16,7 @@ Negatives are drawn within the context node's type (each type occupies a
+ contiguous global-id block), metapath2vec++-style, so the model cannot cheat by
+ merely separating node types.
+ 
+-    python train_metapath2vec.py --dataset AMAZON --arch amazon_lp_han --split-seed 0
++    python train_metapath2vec.py --dataset AMAZON --arch amazon_lp_han --split-seed 1
+ """
+ 
+ import argparse
+@@ -300,7 +300,8 @@ def parse_args():
+                     help='comma-separated walk templates (overrides --arch)')
+     ap.add_argument('--arch', type=str, default='',
+                     help='arch.py key holding the discovered path list')
+-    ap.add_argument('--split-seed', type=int, default=0)
++    ap.add_argument('--split-seed', type=int, default=1,
++                    help='must match the search/build --split-seed (the LMSPS fleets use 1)')
+     ap.add_argument('--num-neg-eval', type=int, default=99)
+     ap.add_argument('--dim', type=int, default=512)
+     ap.add_argument('--walks-per-node', type=int, default=5,

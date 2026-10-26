@@ -27,7 +27,10 @@ Please install the requirements using the following command. (The python version
 > `requirements.txt` -- torch 2.1.2+cu121, torch_sparse 0.6.18 from the PyG index,
 > dgl 2.2.1 (the only 2.x release with Windows wheels) + torchdata 0.7.1. Keep
 > Python 3.9 to reuse the prebuilt `sparse_tools` extension; link prediction in
-> `hgb/` does not need `sparse_tools` at all.
+> `hgb/` does not need `sparse_tools` at all (it is a submodule here:
+> `git submodule update --init sparse_tools` instead of the clone below).
+> The AMAZON link-prediction pipeline (data rebuild, meta-path search fleets, re-selection)
+> and its run flow are in `hgb/README.md`; the review notes are in `review/`.
 
 ```setup
 pip install -r requirements.txt

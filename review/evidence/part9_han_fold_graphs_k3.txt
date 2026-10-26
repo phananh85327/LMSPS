@@ -1,0 +1,20 @@
+Part 9, HAN repo (parked): test Hit@10 on the k3 mini graph, HAN-improve's own model/loss/metrics,
+hidden 128, beta warm-up 15, patience 10. k0 = graphs from all training edges (as now);
+k4 = each fold of training edges scored on graphs built without it; k4ctrl = the same
+fold-by-fold sampling but the full graphs. Stopped early when the HAN repo was parked.
+
+PUP
+  k0       n=3  hit10 0.330 [0.326-0.339]  val 0.511  best ep 29  per seed: s1:0.326 s2:0.339 s3:0.326
+  k4ctrl   n=3  hit10 0.320 [0.304-0.351]  val 0.511  best ep 28  per seed: s1:0.305 s2:0.351 s3:0.304
+  k4       n=3  hit10 0.359 [0.353-0.363]  val 0.497  best ep 39  per seed: s1:0.363 s2:0.353 s3:0.360
+PUPUP
+  k0       n=3  hit10 0.319 [0.318-0.319]  val 0.526  best ep 26  per seed: s1:0.318 s2:0.318 s3:0.319
+  k4ctrl   n=3  hit10 0.279 [0.264-0.307]  val 0.530  best ep 23  per seed: s1:0.266 s2:0.264 s3:0.307
+  k4       n=3  hit10 0.354 [0.340-0.374]  val 0.510  best ep 45  per seed: s1:0.374 s2:0.340 s3:0.349
+PCP
+  k0       n=3  hit10 0.375 [0.333-0.421]  val 0.503  best ep 31  per seed: s1:0.421 s2:0.333 s3:0.372
+  k4       n=3  hit10 0.350 [0.345-0.357]  val 0.502  best ep 21  per seed: s1:0.348 s2:0.357 s3:0.345
+PUP-PUPUP-PCPUP-PUPPUP
+  k0       n=4  hit10 0.423 [0.412-0.433]  val 0.492  best ep 35  per seed: s1:0.425 s2:0.422 s3:0.433 s4:0.412
+  k4ctrl   n=3  hit10 0.421 [0.403-0.434]  val 0.493  best ep 38  per seed: s1:0.434 s2:0.427 s3:0.403
+  k4       n=3  hit10 0.323 [0.265-0.421]  val 0.513  best ep 29  per seed: s1:0.283 s2:0.265 s3:0.421

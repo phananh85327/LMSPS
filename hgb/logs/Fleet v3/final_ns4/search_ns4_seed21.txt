@@ -1,0 +1,1606 @@
+Namespace(seeds=[21], dataset='AMAZON', gpu=0, cpu=False, root='../data/', stage=150, num_hops=5, label_feats=False, num_label_hops=2, hidden=512, dropout=0.5, input_drop=0, residual=False, bns=False, amp=False, lr=0.001, alr=0.001, weight_decay=0, eval_every=1, batch_size=10000, patience=100, drop_metapath=0, nh=1, ns=4, ratio=0, dy=False, no_path=[], no_label=[], identity=False, topn=0, all_path=False, ns_linear=False, tau_max=8, tau_min=4, edge_mask_ratio=0.0, repeat=200, num_final=10, ACM_keep_F=False, task='link_prediction', target_relation='U,P', num_neg_eval=99, split_seed=1, tgt_ended_paths=True, dedupe_reversed=True, half_feats=True, user_tower='embedding', eval_no_gumbel=True, eval_exhaustive_cap=1000, deterministic=True, search_json='logs\\Fleet v3\\final_ns4\\search_ns4_seed21.json', warmup_epochs=15, ns_search=0, alpha_edges='val', wstep_kfold=4, same_type_loops=False, report_delta=0.01, seed=21)
+Restart with seed = 21
+deterministic mode: CUBLAS_WORKSPACE_CONFIG=:4096:8, torch.use_deterministic_algorithms(True, warn_only=True)
+31285 7821 9777 9777
+C C-C CC
+C C-P PC
+P P-C CP
+P P-P PP
+P P-U UP
+U U-P PU
+remove ['C']
+remove ['U']
+-- hop=1 ---
+C CC torch.Size([37411, 128]) tensor(0.1429) tensor(1.3503e-05)
+C CP torch.Size([37411, 260]) tensor(1.) tensor(0.3450)
+P P torch.Size([48883, 260]) tensor(1.) tensor(0.0887)
+P PC torch.Size([48883, 128]) tensor(0.5000) tensor(0.0002)
+P PP torch.Size([48883, 260]) tensor(1.) tensor(0.0755)
+P PU torch.Size([48883, 64]) tensor(1.) tensor(0.1226)
+U UP torch.Size([53569, 260]) tensor(1.) tensor(0.1015)
+------
+
+CC C-C CCC
+CP C-C CCP
+CC C-P PCC
+CP C-P PCP
+PC P-C CPC
+PP P-C CPP
+PU P-C CPU
+PC P-P PPC
+PP P-P PPP
+PU P-P PPU
+PC P-U UPC
+PP P-U UPP
+PU P-U UPU
+UP U-P PUP
+remove ['CC', 'CP']
+remove ['UP']
+-- hop=2 ---
+C CCC torch.Size([37411, 128]) tensor(0.1429) tensor(0.0015)
+C CCP torch.Size([37411, 260]) tensor(1.) tensor(0.3265)
+C CPC torch.Size([37411, 128]) tensor(0.2857) tensor(0.0009)
+C CPP torch.Size([37411, 260]) tensor(1.) tensor(0.2779)
+C CPU torch.Size([37411, 64]) tensor(1.) tensor(0.1150)
+P P torch.Size([48883, 260]) tensor(1.) tensor(0.0887)
+P PC torch.Size([48883, 128]) tensor(0.5000) tensor(0.0002)
+P PP torch.Size([48883, 260]) tensor(1.) tensor(0.0755)
+P PU torch.Size([48883, 64]) tensor(1.) tensor(0.1226)
+P PCC torch.Size([48883, 128]) tensor(0.0055) tensor(2.9579e-06)
+P PCP torch.Size([48883, 260]) tensor(1.) tensor(0.0901)
+P PPC torch.Size([48883, 128]) tensor(0.3542) tensor(0.0002)
+P PPP torch.Size([48883, 260]) tensor(1.) tensor(0.0779)
+P PPU torch.Size([48883, 64]) tensor(1.) tensor(0.1077)
+P PUP torch.Size([48883, 260]) tensor(0.8333) tensor(0.1014)
+U UPC torch.Size([53569, 128]) tensor(0.1250) tensor(0.0003)
+U UPP torch.Size([53569, 260]) tensor(1.) tensor(0.0903)
+U UPU torch.Size([53569, 64]) tensor(0.7143) tensor(0.1242)
+------
+
+CCC C-C CCCC
+CCP C-C CCCP
+CPC C-C CCPC
+CPP C-C CCPP
+CPU C-C CCPU
+CCC C-P PCCC
+CCP C-P PCCP
+CPC C-P PCPC
+CPP C-P PCPP
+CPU C-P PCPU
+PCC P-C CPCC
+PCP P-C CPCP
+PPC P-C CPPC
+PPP P-C CPPP
+PPU P-C CPPU
+PUP P-C CPUP
+PCC P-P PPCC
+PCP P-P PPCP
+PPC P-P PPPC
+PPP P-P PPPP
+PPU P-P PPPU
+PUP P-P PPUP
+PCC P-U UPCC
+PCP P-U UPCP
+PPC P-U UPPC
+PPP P-U UPPP
+PPU P-U UPPU
+PUP P-U UPUP
+UPC U-P PUPC
+UPP U-P PUPP
+UPU U-P PUPU
+remove ['CCC', 'CCP', 'CPC', 'CPP', 'CPU']
+remove ['UPC', 'UPP', 'UPU']
+-- hop=3 ---
+C CCCC torch.Size([37411, 128]) tensor(0.1331) tensor(1.7524e-05)
+C CCCP torch.Size([37411, 260]) tensor(0.9980) tensor(0.3383)
+C CCPC torch.Size([37411, 128]) tensor(0.0526) tensor(0.0003)
+C CCPP torch.Size([37411, 260]) tensor(0.8000) tensor(0.2471)
+C CCPU torch.Size([37411, 64]) tensor(0.6000) tensor(0.0829)
+C CPCC torch.Size([37411, 128]) tensor(0.0055) tensor(1.4028e-05)
+C CPCP torch.Size([37411, 260]) tensor(0.9783) tensor(0.3356)
+C CPPC torch.Size([37411, 128]) tensor(0.2639) tensor(0.0007)
+C CPPP torch.Size([37411, 260]) tensor(1.) tensor(0.2880)
+C CPPU torch.Size([37411, 64]) tensor(1.) tensor(0.1029)
+C CPUP torch.Size([37411, 260]) tensor(0.7313) tensor(0.2212)
+P P torch.Size([48883, 260]) tensor(1.) tensor(0.0887)
+P PC torch.Size([48883, 128]) tensor(0.5000) tensor(0.0002)
+P PP torch.Size([48883, 260]) tensor(1.) tensor(0.0755)
+P PU torch.Size([48883, 64]) tensor(1.) tensor(0.1226)
+P PCC torch.Size([48883, 128]) tensor(0.0055) tensor(2.9579e-06)
+P PCP torch.Size([48883, 260]) tensor(1.) tensor(0.0901)
+P PPC torch.Size([48883, 128]) tensor(0.3542) tensor(0.0002)
+P PPP torch.Size([48883, 260]) tensor(1.) tensor(0.0779)
+P PPU torch.Size([48883, 64]) tensor(1.) tensor(0.1077)
+P PUP torch.Size([48883, 260]) tensor(0.8333) tensor(0.1014)
+P PCCC torch.Size([48883, 128]) tensor(0.0714) tensor(0.0002)
+P PCCP torch.Size([48883, 260]) tensor(0.7367) tensor(0.0421)
+P PCPC torch.Size([48883, 128]) tensor(0.1815) tensor(0.0002)
+P PCPP torch.Size([48883, 260]) tensor(0.8929) tensor(0.0788)
+P PCPU torch.Size([48883, 64]) tensor(0.4146) tensor(0.1225)
+P PPCC torch.Size([48883, 128]) tensor(0.0030) tensor(2.5722e-06)
+P PPCP torch.Size([48883, 260]) tensor(0.9819) tensor(0.0801)
+P PPPC torch.Size([48883, 128]) tensor(0.3333) tensor(0.0002)
+P PPPP torch.Size([48883, 260]) tensor(1.) tensor(0.0764)
+P PPPU torch.Size([48883, 64]) tensor(1.) tensor(0.1081)
+P PPUP torch.Size([48883, 260]) tensor(0.8333) tensor(0.0902)
+P PUPC torch.Size([48883, 128]) tensor(0.0405) tensor(0.0003)
+P PUPP torch.Size([48883, 260]) tensor(0.7313) tensor(0.0890)
+P PUPU torch.Size([48883, 64]) tensor(0.7143) tensor(0.1231)
+U UPCC torch.Size([53569, 128]) tensor(0.0014) tensor(2.4585e-06)
+U UPCP torch.Size([53569, 260]) tensor(0.9770) tensor(0.1094)
+U UPPC torch.Size([53569, 128]) tensor(0.1771) tensor(0.0003)
+U UPPP torch.Size([53569, 260]) tensor(1.) tensor(0.0933)
+U UPPU torch.Size([53569, 64]) tensor(0.4444) tensor(0.1161)
+U UPUP torch.Size([53569, 260]) tensor(0.6095) tensor(0.1065)
+------
+
+CCCC C-C CCCCC
+CCCP C-C CCCCP
+CCPC C-C CCCPC
+CCPP C-C CCCPP
+CCPU C-C CCCPU
+CPCC C-C CCPCC
+CPCP C-C CCPCP
+CPPC C-C CCPPC
+CPPP C-C CCPPP
+CPPU C-C CCPPU
+CPUP C-C CCPUP
+CCCC C-P PCCCC
+CCCP C-P PCCCP
+CCPC C-P PCCPC
+CCPP C-P PCCPP
+CCPU C-P PCCPU
+CPCC C-P PCPCC
+CPCP C-P PCPCP
+CPPC C-P PCPPC
+CPPP C-P PCPPP
+CPPU C-P PCPPU
+CPUP C-P PCPUP
+PCCC P-C CPCCC
+PCCP P-C CPCCP
+PCPC P-C CPCPC
+PCPP P-C CPCPP
+PCPU P-C CPCPU
+PPCC P-C CPPCC
+PPCP P-C CPPCP
+PPPC P-C CPPPC
+PPPP P-C CPPPP
+PPPU P-C CPPPU
+PPUP P-C CPPUP
+PUPC P-C CPUPC
+PUPP P-C CPUPP
+PUPU P-C CPUPU
+PCCC P-P PPCCC
+PCCP P-P PPCCP
+PCPC P-P PPCPC
+PCPP P-P PPCPP
+PCPU P-P PPCPU
+PPCC P-P PPPCC
+PPCP P-P PPPCP
+PPPC P-P PPPPC
+PPPP P-P PPPPP
+PPPU P-P PPPPU
+PPUP P-P PPPUP
+PUPC P-P PPUPC
+PUPP P-P PPUPP
+PUPU P-P PPUPU
+PCCC P-U UPCCC
+PCCP P-U UPCCP
+PCPC P-U UPCPC
+PCPP P-U UPCPP
+PCPU P-U UPCPU
+PPCC P-U UPPCC
+PPCP P-U UPPCP
+PPPC P-U UPPPC
+PPPP P-U UPPPP
+PPPU P-U UPPPU
+PPUP P-U UPPUP
+PUPC P-U UPUPC
+PUPP P-U UPUPP
+PUPU P-U UPUPU
+UPCC U-P PUPCC
+UPCP U-P PUPCP
+UPPC U-P PUPPC
+UPPP U-P PUPPP
+UPPU U-P PUPPU
+UPUP U-P PUPUP
+remove ['CCCC', 'CCCP', 'CCPC', 'CCPP', 'CCPU', 'CPCC', 'CPCP', 'CPPC', 'CPPP', 'CPPU', 'CPUP']
+remove ['UPCC', 'UPCP', 'UPPC', 'UPPP', 'UPPU', 'UPUP']
+-- hop=4 ---
+C CCCCC torch.Size([37411, 128]) tensor(0.1331) tensor(0.0015)
+C CCCCP torch.Size([37411, 260]) tensor(0.9980) tensor(0.3293)
+C CCCPC torch.Size([37411, 128]) tensor(0.0526) tensor(0.0009)
+C CCCPP torch.Size([37411, 260]) tensor(0.7838) tensor(0.2722)
+C CCCPU torch.Size([37411, 64]) tensor(0.5746) tensor(0.1074)
+C CCPCC torch.Size([37411, 128]) tensor(0.0019) tensor(0.0001)
+C CCPCP torch.Size([37411, 260]) tensor(0.8086) tensor(0.3015)
+C CCPPC torch.Size([37411, 128]) tensor(0.0244) tensor(0.0006)
+C CCPPP torch.Size([37411, 260]) tensor(0.7181) tensor(0.2471)
+C CCPPU torch.Size([37411, 64]) tensor(0.3750) tensor(0.0749)
+C CCPUP torch.Size([37411, 260]) tensor(0.4780) tensor(0.1791)
+C CPCCC torch.Size([37411, 128]) tensor(0.0714) tensor(0.0008)
+C CPCCP torch.Size([37411, 260]) tensor(0.7367) tensor(0.1931)
+C CPCPC torch.Size([37411, 128]) tensor(0.1815) tensor(0.0008)
+C CPCPP torch.Size([37411, 260]) tensor(0.8558) tensor(0.2791)
+C CPCPU torch.Size([37411, 64]) tensor(0.4146) tensor(0.1153)
+C CPPCC torch.Size([37411, 128]) tensor(0.0022) tensor(1.0324e-05)
+C CPPCP torch.Size([37411, 260]) tensor(0.9350) tensor(0.2896)
+C CPPPC torch.Size([37411, 128]) tensor(0.2601) tensor(0.0007)
+C CPPPP torch.Size([37411, 260]) tensor(1.) tensor(0.2740)
+C CPPPU torch.Size([37411, 64]) tensor(0.6667) tensor(0.1033)
+C CPPUP torch.Size([37411, 260]) tensor(0.7313) tensor(0.1964)
+C CPUPC torch.Size([37411, 128]) tensor(0.0378) tensor(0.0007)
+C CPUPP torch.Size([37411, 260]) tensor(0.5932) tensor(0.1867)
+C CPUPU torch.Size([37411, 64]) tensor(0.3618) tensor(0.1143)
+P P torch.Size([48883, 260]) tensor(1.) tensor(0.0887)
+P PC torch.Size([48883, 128]) tensor(0.5000) tensor(0.0002)
+P PP torch.Size([48883, 260]) tensor(1.) tensor(0.0755)
+P PU torch.Size([48883, 64]) tensor(1.) tensor(0.1226)
+P PCC torch.Size([48883, 128]) tensor(0.0055) tensor(2.9579e-06)
+P PCP torch.Size([48883, 260]) tensor(1.) tensor(0.0901)
+P PPC torch.Size([48883, 128]) tensor(0.3542) tensor(0.0002)
+P PPP torch.Size([48883, 260]) tensor(1.) tensor(0.0779)
+P PPU torch.Size([48883, 64]) tensor(1.) tensor(0.1077)
+P PUP torch.Size([48883, 260]) tensor(0.8333) tensor(0.1014)
+P PCCC torch.Size([48883, 128]) tensor(0.0714) tensor(0.0002)
+P PCCP torch.Size([48883, 260]) tensor(0.7367) tensor(0.0421)
+P PCPC torch.Size([48883, 128]) tensor(0.1815) tensor(0.0002)
+P PCPP torch.Size([48883, 260]) tensor(0.8929) tensor(0.0788)
+P PCPU torch.Size([48883, 64]) tensor(0.4146) tensor(0.1225)
+P PPCC torch.Size([48883, 128]) tensor(0.0030) tensor(2.5722e-06)
+P PPCP torch.Size([48883, 260]) tensor(0.9819) tensor(0.0801)
+P PPPC torch.Size([48883, 128]) tensor(0.3333) tensor(0.0002)
+P PPPP torch.Size([48883, 260]) tensor(1.) tensor(0.0764)
+P PPPU torch.Size([48883, 64]) tensor(1.) tensor(0.1081)
+P PPUP torch.Size([48883, 260]) tensor(0.8333) tensor(0.0902)
+P PUPC torch.Size([48883, 128]) tensor(0.0405) tensor(0.0003)
+P PUPP torch.Size([48883, 260]) tensor(0.7313) tensor(0.0890)
+P PUPU torch.Size([48883, 64]) tensor(0.7143) tensor(0.1231)
+P PCCCC torch.Size([48883, 128]) tensor(0.0167) tensor(8.9863e-06)
+P PCCCP torch.Size([48883, 260]) tensor(0.7257) tensor(0.0770)
+P PCCPC torch.Size([48883, 128]) tensor(0.0026) tensor(3.8755e-05)
+P PCCPP torch.Size([48883, 260]) tensor(0.4853) tensor(0.0313)
+P PCCPU torch.Size([48883, 64]) tensor(0.2000) tensor(0.0105)
+P PCPCC torch.Size([48883, 128]) tensor(0.0016) tensor(2.8630e-06)
+P PCPCP torch.Size([48883, 260]) tensor(0.9583) tensor(0.0906)
+P PCPPC torch.Size([48883, 128]) tensor(0.1323) tensor(0.0002)
+P PCPPP torch.Size([48883, 260]) tensor(0.8942) tensor(0.0814)
+P PCPPU torch.Size([48883, 64]) tensor(0.4269) tensor(0.1093)
+P PCPUP torch.Size([48883, 260]) tensor(0.5004) tensor(0.1026)
+P PPCCC torch.Size([48883, 128]) tensor(0.0714) tensor(0.0002)
+P PPCCP torch.Size([48883, 260]) tensor(0.6872) tensor(0.0379)
+P PPCPC torch.Size([48883, 128]) tensor(0.1018) tensor(0.0002)
+P PPCPP torch.Size([48883, 260]) tensor(0.8929) tensor(0.0733)
+P PPCPU torch.Size([48883, 64]) tensor(0.4146) tensor(0.1085)
+P PPPCC torch.Size([48883, 128]) tensor(0.0023) tensor(2.6488e-06)
+P PPPCP torch.Size([48883, 260]) tensor(0.9779) tensor(0.0809)
+P PPPPC torch.Size([48883, 128]) tensor(0.3125) tensor(0.0002)
+P PPPPP torch.Size([48883, 260]) tensor(1.) tensor(0.0777)
+P PPPPU torch.Size([48883, 64]) tensor(1.) tensor(0.1078)
+P PPPUP torch.Size([48883, 260]) tensor(0.8333) tensor(0.0905)
+P PPUPC torch.Size([48883, 128]) tensor(0.0345) tensor(0.0003)
+P PPUPP torch.Size([48883, 260]) tensor(0.7313) tensor(0.0804)
+P PPUPU torch.Size([48883, 64]) tensor(0.3311) tensor(0.1090)
+P PUPCC torch.Size([48883, 128]) tensor(0.0008) tensor(2.6614e-06)
+P PUPCP torch.Size([48883, 260]) tensor(0.7139) tensor(0.1072)
+P PUPPC torch.Size([48883, 128]) tensor(0.0481) tensor(0.0003)
+P PUPPP torch.Size([48883, 260]) tensor(0.7205) tensor(0.0922)
+P PUPPU torch.Size([48883, 64]) tensor(0.2769) tensor(0.1135)
+P PUPUP torch.Size([48883, 260]) tensor(0.4897) tensor(0.1066)
+U UPCCC torch.Size([53569, 128]) tensor(0.0417) tensor(0.0003)
+U UPCCP torch.Size([53569, 260]) tensor(0.5767) tensor(0.0531)
+U UPCPC torch.Size([53569, 128]) tensor(0.0363) tensor(0.0003)
+U UPCPP torch.Size([53569, 260]) tensor(0.7815) tensor(0.0973)
+U UPCPU torch.Size([53569, 64]) tensor(0.2921) tensor(0.1228)
+U UPPCC torch.Size([53569, 128]) tensor(0.0007) tensor(2.5479e-06)
+U UPPCP torch.Size([53569, 260]) tensor(0.9307) tensor(0.1006)
+U UPPPC torch.Size([53569, 128]) tensor(0.1536) tensor(0.0003)
+U UPPPP torch.Size([53569, 260]) tensor(1.) tensor(0.0919)
+U UPPPU torch.Size([53569, 64]) tensor(0.4372) tensor(0.1164)
+U UPPUP torch.Size([53569, 260]) tensor(0.5429) tensor(0.1013)
+U UPUPC torch.Size([53569, 128]) tensor(0.0307) tensor(0.0004)
+U UPUPP torch.Size([53569, 260]) tensor(0.5411) tensor(0.0950)
+U UPUPU torch.Size([53569, 64]) tensor(0.4765) tensor(0.1237)
+------
+
+CCCCC C-P PCCCCC
+CCCCP C-P PCCCCP
+CCCPC C-P PCCCPC
+CCCPP C-P PCCCPP
+CCCPU C-P PCCCPU
+CCPCC C-P PCCPCC
+CCPCP C-P PCCPCP
+CCPPC C-P PCCPPC
+CCPPP C-P PCCPPP
+CCPPU C-P PCCPPU
+CCPUP C-P PCCPUP
+CPCCC C-P PCPCCC
+CPCCP C-P PCPCCP
+CPCPC C-P PCPCPC
+CPCPP C-P PCPCPP
+CPCPU C-P PCPCPU
+CPPCC C-P PCPPCC
+CPPCP C-P PCPPCP
+CPPPC C-P PCPPPC
+CPPPP C-P PCPPPP
+CPPPU C-P PCPPPU
+CPPUP C-P PCPPUP
+CPUPC C-P PCPUPC
+CPUPP C-P PCPUPP
+CPUPU C-P PCPUPU
+PCCCC P-P PPCCCC
+PCCCP P-P PPCCCP
+PCCPC P-P PPCCPC
+PCCPP P-P PPCCPP
+PCCPU P-P PPCCPU
+PCPCC P-P PPCPCC
+PCPCP P-P PPCPCP
+PCPPC P-P PPCPPC
+PCPPP P-P PPCPPP
+PCPPU P-P PPCPPU
+PCPUP P-P PPCPUP
+PPCCC P-P PPPCCC
+PPCCP P-P PPPCCP
+PPCPC P-P PPPCPC
+PPCPP P-P PPPCPP
+PPCPU P-P PPPCPU
+PPPCC P-P PPPPCC
+PPPCP P-P PPPPCP
+PPPPC P-P PPPPPC
+PPPPP P-P PPPPPP
+PPPPU P-P PPPPPU
+PPPUP P-P PPPPUP
+PPUPC P-P PPPUPC
+PPUPP P-P PPPUPP
+PPUPU P-P PPPUPU
+PUPCC P-P PPUPCC
+PUPCP P-P PPUPCP
+PUPPC P-P PPUPPC
+PUPPP P-P PPUPPP
+PUPPU P-P PPUPPU
+PUPUP P-P PPUPUP
+UPCCC U-P PUPCCC
+UPCCP U-P PUPCCP
+UPCPC U-P PUPCPC
+UPCPP U-P PUPCPP
+UPCPU U-P PUPCPU
+UPPCC U-P PUPPCC
+UPPCP U-P PUPPCP
+UPPPC U-P PUPPPC
+UPPPP U-P PUPPPP
+UPPPU U-P PUPPPU
+UPPUP U-P PUPPUP
+UPUPC U-P PUPUPC
+UPUPP U-P PUPUPP
+UPUPU U-P PUPUPU
+remove ['CCCCC', 'CCCCP', 'CCCPC', 'CCCPP', 'CCCPU', 'CCPCC', 'CCPCP', 'CCPPC', 'CCPPP', 'CCPPU', 'CCPUP', 'CPCCC', 'CPCCP', 'CPCPC', 'CPCPP', 'CPCPU', 'CPPCC', 'CPPCP', 'CPPPC', 'CPPPP', 'CPPPU', 'CPPUP', 'CPUPC', 'CPUPP', 'CPUPU']
+remove ['UPCCC', 'UPCCP', 'UPCPC', 'UPCPP', 'UPCPU', 'UPPCC', 'UPPCP', 'UPPPC', 'UPPPP', 'UPPPU', 'UPPUP', 'UPUPC', 'UPUPP', 'UPUPU']
+-- hop=5 ---
+P P torch.Size([48883, 260]) tensor(1.) tensor(0.0887)
+P PC torch.Size([48883, 128]) tensor(0.5000) tensor(0.0002)
+P PP torch.Size([48883, 260]) tensor(1.) tensor(0.0755)
+P PU torch.Size([48883, 64]) tensor(1.) tensor(0.1226)
+P PCC torch.Size([48883, 128]) tensor(0.0055) tensor(2.9579e-06)
+P PCP torch.Size([48883, 260]) tensor(1.) tensor(0.0901)
+P PPC torch.Size([48883, 128]) tensor(0.3542) tensor(0.0002)
+P PPP torch.Size([48883, 260]) tensor(1.) tensor(0.0779)
+P PPU torch.Size([48883, 64]) tensor(1.) tensor(0.1077)
+P PUP torch.Size([48883, 260]) tensor(0.8333) tensor(0.1014)
+P PCCC torch.Size([48883, 128]) tensor(0.0714) tensor(0.0002)
+P PCCP torch.Size([48883, 260]) tensor(0.7367) tensor(0.0421)
+P PCPC torch.Size([48883, 128]) tensor(0.1815) tensor(0.0002)
+P PCPP torch.Size([48883, 260]) tensor(0.8929) tensor(0.0788)
+P PCPU torch.Size([48883, 64]) tensor(0.4146) tensor(0.1225)
+P PPCC torch.Size([48883, 128]) tensor(0.0030) tensor(2.5722e-06)
+P PPCP torch.Size([48883, 260]) tensor(0.9819) tensor(0.0801)
+P PPPC torch.Size([48883, 128]) tensor(0.3333) tensor(0.0002)
+P PPPP torch.Size([48883, 260]) tensor(1.) tensor(0.0764)
+P PPPU torch.Size([48883, 64]) tensor(1.) tensor(0.1081)
+P PPUP torch.Size([48883, 260]) tensor(0.8333) tensor(0.0902)
+P PUPC torch.Size([48883, 128]) tensor(0.0405) tensor(0.0003)
+P PUPP torch.Size([48883, 260]) tensor(0.7313) tensor(0.0890)
+P PUPU torch.Size([48883, 64]) tensor(0.7143) tensor(0.1231)
+P PCCCC torch.Size([48883, 128]) tensor(0.0167) tensor(8.9863e-06)
+P PCCCP torch.Size([48883, 260]) tensor(0.7257) tensor(0.0770)
+P PCCPC torch.Size([48883, 128]) tensor(0.0026) tensor(3.8755e-05)
+P PCCPP torch.Size([48883, 260]) tensor(0.4853) tensor(0.0313)
+P PCCPU torch.Size([48883, 64]) tensor(0.2000) tensor(0.0105)
+P PCPCC torch.Size([48883, 128]) tensor(0.0016) tensor(2.8630e-06)
+P PCPCP torch.Size([48883, 260]) tensor(0.9583) tensor(0.0906)
+P PCPPC torch.Size([48883, 128]) tensor(0.1323) tensor(0.0002)
+P PCPPP torch.Size([48883, 260]) tensor(0.8942) tensor(0.0814)
+P PCPPU torch.Size([48883, 64]) tensor(0.4269) tensor(0.1093)
+P PCPUP torch.Size([48883, 260]) tensor(0.5004) tensor(0.1026)
+P PPCCC torch.Size([48883, 128]) tensor(0.0714) tensor(0.0002)
+P PPCCP torch.Size([48883, 260]) tensor(0.6872) tensor(0.0379)
+P PPCPC torch.Size([48883, 128]) tensor(0.1018) tensor(0.0002)
+P PPCPP torch.Size([48883, 260]) tensor(0.8929) tensor(0.0733)
+P PPCPU torch.Size([48883, 64]) tensor(0.4146) tensor(0.1085)
+P PPPCC torch.Size([48883, 128]) tensor(0.0023) tensor(2.6488e-06)
+P PPPCP torch.Size([48883, 260]) tensor(0.9779) tensor(0.0809)
+P PPPPC torch.Size([48883, 128]) tensor(0.3125) tensor(0.0002)
+P PPPPP torch.Size([48883, 260]) tensor(1.) tensor(0.0777)
+P PPPPU torch.Size([48883, 64]) tensor(1.) tensor(0.1078)
+P PPPUP torch.Size([48883, 260]) tensor(0.8333) tensor(0.0905)
+P PPUPC torch.Size([48883, 128]) tensor(0.0345) tensor(0.0003)
+P PPUPP torch.Size([48883, 260]) tensor(0.7313) tensor(0.0804)
+P PPUPU torch.Size([48883, 64]) tensor(0.3311) tensor(0.1090)
+P PUPCC torch.Size([48883, 128]) tensor(0.0008) tensor(2.6614e-06)
+P PUPCP torch.Size([48883, 260]) tensor(0.7139) tensor(0.1072)
+P PUPPC torch.Size([48883, 128]) tensor(0.0481) tensor(0.0003)
+P PUPPP torch.Size([48883, 260]) tensor(0.7205) tensor(0.0922)
+P PUPPU torch.Size([48883, 64]) tensor(0.2769) tensor(0.1135)
+P PUPUP torch.Size([48883, 260]) tensor(0.4897) tensor(0.1066)
+P PCCCCC torch.Size([48883, 128]) tensor(0.0665) tensor(0.0002)
+P PCCCCP torch.Size([48883, 260]) tensor(0.7481) tensor(0.0495)
+P PCCCPC torch.Size([48883, 128]) tensor(0.0228) tensor(0.0002)
+P PCCCPP torch.Size([48883, 260]) tensor(0.5727) tensor(0.0689)
+P PCCCPU torch.Size([48883, 64]) tensor(0.2305) tensor(0.0951)
+P PCCPCC torch.Size([48883, 128]) tensor(0.0007) tensor(1.6089e-05)
+P PCCPCP torch.Size([48883, 260]) tensor(0.5721) tensor(0.0383)
+P PCCPPC torch.Size([48883, 128]) tensor(0.0035) tensor(8.7278e-05)
+P PCCPPP torch.Size([48883, 260]) tensor(0.4999) tensor(0.0313)
+P PCCPPU torch.Size([48883, 64]) tensor(0.1267) tensor(0.0094)
+P PCCPUP torch.Size([48883, 260]) tensor(0.3119) tensor(0.0227)
+P PCPCCC torch.Size([48883, 128]) tensor(0.0361) tensor(0.0002)
+P PCPCCP torch.Size([48883, 260]) tensor(0.5359) tensor(0.0444)
+P PCPCPC torch.Size([48883, 128]) tensor(0.1195) tensor(0.0002)
+P PCPCPP torch.Size([48883, 260]) tensor(0.7627) tensor(0.0802)
+P PCPCPU torch.Size([48883, 64]) tensor(0.3333) tensor(0.1225)
+P PCPPCC torch.Size([48883, 128]) tensor(0.0004) tensor(2.5279e-06)
+P PCPPCP torch.Size([48883, 260]) tensor(0.8228) tensor(0.0833)
+P PCPPPC torch.Size([48883, 128]) tensor(0.1304) tensor(0.0002)
+P PCPPPP torch.Size([48883, 260]) tensor(0.8894) tensor(0.0799)
+P PCPPPU torch.Size([48883, 64]) tensor(0.4224) tensor(0.1097)
+P PCPPUP torch.Size([48883, 260]) tensor(0.4493) tensor(0.0930)
+P PCPUPC torch.Size([48883, 128]) tensor(0.0134) tensor(0.0003)
+P PCPUPP torch.Size([48883, 260]) tensor(0.4037) tensor(0.0903)
+P PCPUPU torch.Size([48883, 64]) tensor(0.2244) tensor(0.1231)
+P PPCCCC torch.Size([48883, 128]) tensor(0.0085) tensor(8.0965e-06)
+P PPCCCP torch.Size([48883, 260]) tensor(0.6909) tensor(0.0697)
+P PPCCPC torch.Size([48883, 128]) tensor(0.0017) tensor(3.7318e-05)
+P PPCCPP torch.Size([48883, 260]) tensor(0.4231) tensor(0.0287)
+P PPCCPU torch.Size([48883, 64]) tensor(0.2000) tensor(0.0097)
+P PPCPCC torch.Size([48883, 128]) tensor(0.0006) tensor(2.5966e-06)
+P PPCPCP torch.Size([48883, 260]) tensor(0.9397) tensor(0.0821)
+P PPCPPC torch.Size([48883, 128]) tensor(0.0941) tensor(0.0002)
+P PPCPPP torch.Size([48883, 260]) tensor(0.8942) tensor(0.0751)
+P PPCPPU torch.Size([48883, 64]) tensor(0.4269) tensor(0.0984)
+P PPCPUP torch.Size([48883, 260]) tensor(0.5004) tensor(0.0919)
+P PPPCCC torch.Size([48883, 128]) tensor(0.0714) tensor(0.0002)
+P PPPCCP torch.Size([48883, 260]) tensor(0.6232) tensor(0.0384)
+P PPPCPC torch.Size([48883, 128]) tensor(0.0958) tensor(0.0002)
+P PPPCPP torch.Size([48883, 260]) tensor(0.8929) tensor(0.0733)
+P PPPCPU torch.Size([48883, 64]) tensor(0.4146) tensor(0.1085)
+P PPPPCC torch.Size([48883, 128]) tensor(0.0023) tensor(2.5692e-06)
+P PPPPCP torch.Size([48883, 260]) tensor(0.9768) tensor(0.0806)
+P PPPPPC torch.Size([48883, 128]) tensor(0.3090) tensor(0.0002)
+P PPPPPP torch.Size([48883, 260]) tensor(1.) tensor(0.0768)
+P PPPPPU torch.Size([48883, 64]) tensor(1.) tensor(0.1080)
+P PPPPUP torch.Size([48883, 260]) tensor(0.8333) tensor(0.0904)
+P PPPUPC torch.Size([48883, 128]) tensor(0.0309) tensor(0.0003)
+P PPPUPP torch.Size([48883, 260]) tensor(0.7313) tensor(0.0805)
+P PPPUPU torch.Size([48883, 64]) tensor(0.3311) tensor(0.1091)
+P PPUPCC torch.Size([48883, 128]) tensor(0.0003) tensor(2.3030e-06)
+P PPUPCP torch.Size([48883, 260]) tensor(0.6990) tensor(0.0958)
+P PPUPPC torch.Size([48883, 128]) tensor(0.0314) tensor(0.0003)
+P PPUPPP torch.Size([48883, 260]) tensor(0.7205) tensor(0.0831)
+P PPUPPU torch.Size([48883, 64]) tensor(0.2769) tensor(0.1022)
+P PPUPUP torch.Size([48883, 260]) tensor(0.4897) tensor(0.0950)
+P PUPCCC torch.Size([48883, 128]) tensor(0.0103) tensor(0.0003)
+P PUPCCP torch.Size([48883, 260]) tensor(0.3823) tensor(0.0528)
+P PUPCPC torch.Size([48883, 128]) tensor(0.0119) tensor(0.0003)
+P PUPCPP torch.Size([48883, 260]) tensor(0.5643) tensor(0.0946)
+P PUPCPU torch.Size([48883, 64]) tensor(0.2082) tensor(0.1225)
+P PUPPCC torch.Size([48883, 128]) tensor(0.0002) tensor(2.6530e-06)
+P PUPPCP torch.Size([48883, 260]) tensor(0.6278) tensor(0.0979)
+P PUPPPC torch.Size([48883, 128]) tensor(0.0428) tensor(0.0003)
+P PUPPPP torch.Size([48883, 260]) tensor(0.7184) tensor(0.0904)
+P PUPPPU torch.Size([48883, 64]) tensor(0.4372) tensor(0.1139)
+P PUPPUP torch.Size([48883, 260]) tensor(0.4046) tensor(0.1002)
+P PUPUPC torch.Size([48883, 128]) tensor(0.0115) tensor(0.0004)
+P PUPUPP torch.Size([48883, 260]) tensor(0.4395) tensor(0.0944)
+P PUPUPU torch.Size([48883, 64]) tensor(0.4765) tensor(0.1232)
+------
+
+For tgt P, feature keys ['P', 'PC', 'PP', 'PU', 'PCC', 'PCP', 'PPC', 'PPP', 'PPU', 'PUP', 'PCCC', 'PCCP', 'PCPC', 'PCPP', 'PCPU', 'PPCC', 'PPCP', 'PPPC', 'PPPP', 'PPPU', 'PPUP', 'PUPC', 'PUPP', 'PUPU', 'PCCCC', 'PCCCP', 'PCCPC', 'PCCPP', 'PCCPU', 'PCPCC', 'PCPCP', 'PCPPC', 'PCPPP', 'PCPPU', 'PCPUP', 'PPCCC', 'PPCCP', 'PPCPC', 'PPCPP', 'PPCPU', 'PPPCC', 'PPPCP', 'PPPPC', 'PPPPP', 'PPPPU', 'PPPUP', 'PPUPC', 'PPUPP', 'PPUPU', 'PUPCC', 'PUPCP', 'PUPPC', 'PUPPP', 'PUPPU', 'PUPUP', 'PCCCCC', 'PCCCCP', 'PCCCPC', 'PCCCPP', 'PCCCPU', 'PCCPCC', 'PCCPCP', 'PCCPPC', 'PCCPPP', 'PCCPPU', 'PCCPUP', 'PCPCCC', 'PCPCCP', 'PCPCPC', 'PCPCPP', 'PCPCPU', 'PCPPCC', 'PCPPCP', 'PCPPPC', 'PCPPPP', 'PCPPPU', 'PCPPUP', 'PCPUPC', 'PCPUPP', 'PCPUPU', 'PPCCCC', 'PPCCCP', 'PPCCPC', 'PPCCPP', 'PPCCPU', 'PPCPCC', 'PPCPCP', 'PPCPPC', 'PPCPPP', 'PPCPPU', 'PPCPUP', 'PPPCCC', 'PPPCCP', 'PPPCPC', 'PPPCPP', 'PPPCPU', 'PPPPCC', 'PPPPCP', 'PPPPPC', 'PPPPPP', 'PPPPPU', 'PPPPUP', 'PPPUPC', 'PPPUPP', 'PPPUPU', 'PPUPCC', 'PPUPCP', 'PPUPPC', 'PPUPPP', 'PPUPPU', 'PPUPUP', 'PUPCCC', 'PUPCCP', 'PUPCPC', 'PUPCPP', 'PUPCPU', 'PUPPCC', 'PUPPCP', 'PUPPPC', 'PUPPPP', 'PUPPPU', 'PUPPUP', 'PUPUPC', 'PUPUPP', 'PUPUPU']
+--tgt-ended-paths: 55 candidates ['PP', 'PCP', 'PPP', 'PUP', 'PCCP', 'PCPP', 'PPCP', 'PPPP', 'PPUP', 'PUPP', 'PCCCP', 'PCCPP', 'PCPCP', 'PCPPP', 'PCPUP', 'PPCCP', 'PPCPP', 'PPPCP', 'PPPPP', 'PPPUP', 'PPUPP', 'PUPCP', 'PUPPP', 'PUPUP', 'PCCCCP', 'PCCCPP', 'PCCPCP', 'PCCPPP', 'PCCPUP', 'PCPCCP', 'PCPCPP', 'PCPPCP', 'PCPPPP', 'PCPPUP', 'PCPUPP', 'PPCCCP', 'PPCCPP', 'PPCPCP', 'PPCPPP', 'PPCPUP', 'PPPCCP', 'PPPCPP', 'PPPPCP', 'PPPPPP', 'PPPPUP', 'PPPUPP', 'PPUPCP', 'PPUPPP', 'PPUPUP', 'PUPCCP', 'PUPCPP', 'PUPPCP', 'PUPPPP', 'PUPPUP', 'PUPUPP']
+--dedupe-reversed: 55 -> 36 candidates ['PP', 'PCP', 'PPP', 'PUP', 'PCCP', 'PCPP', 'PPPP', 'PPUP', 'PCCCP', 'PCCPP', 'PCPCP', 'PCPPP', 'PCPUP', 'PPCPP', 'PPPPP', 'PPPUP', 'PPUPP', 'PUPUP', 'PCCCCP', 'PCCCPP', 'PCCPCP', 'PCCPPP', 'PCCPUP', 'PCPCPP', 'PCPPCP', 'PCPPPP', 'PCPPUP', 'PCPUPP', 'PPCCPP', 'PPCPPP', 'PPCPUP', 'PPPPPP', 'PPPPUP', 'PPPUPP', 'PPUPUP', 'PUPPUP']
+--wstep-kfold 4: the weight step reads 14 of 36 candidates per fold ([164282, 163361, 163850, 164386] train edges per fold)
+Time used for feat prop 0:00:36.737331
+num sampled :4
+search schedule: 150 epochs, warm-up 15 (pool fixed at 36), then linear shrink to 10; 4 paths sampled per step, 4 selected at the end
+number of paths 36 0
+LMSPS_Se(
+  (embeding): ParameterDict(
+      (PP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PUP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCCP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPUP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCCCP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCCPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCPCP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCPPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCPUP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPCPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPPPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPPUP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPUPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PUPUP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCCCCP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCCCPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCCPCP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCCPPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCCPUP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCPCPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCPPCP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCPPPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCPPUP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PCPUPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPCCPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPCPPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPCPUP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPPPPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPPPUP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPPUPP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PPUPUP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+      (PUPPUP): Parameter containing: [torch.cuda.FloatTensor of size 260x512 (cuda:0)]
+  )
+  (prelu): PReLU(num_parameters=1)
+  (dropout): Dropout(p=0.5, inplace=False)
+  (input_drop): Dropout(p=0, inplace=False)
+)
+UserEmbeddingTower(
+  (emb): Embedding(53569, 512)
+)
+# Params: 32219649
+sampled: [10, 18, 26, 30]
+Epoch 0, train bpr 0.6568, val bpr 0.6586
+sampled: [11, 13, 33, 35]
+Epoch 1, train bpr 0.6297, val bpr 0.6321
+sampled: [11, 16, 18, 26]
+Epoch 2, train bpr 0.5453, val bpr 0.5551
+sampled: [1, 11, 25, 31]
+Epoch 3, train bpr 0.5101, val bpr 0.5248
+sampled: [7, 13, 15, 26]
+Epoch 4, train bpr 0.4955, val bpr 0.5103
+sampled: [13, 27, 33, 35]
+Epoch 5, train bpr 0.4772, val bpr 0.4949
+sampled: [4, 15, 27, 32]
+Epoch 6, train bpr 0.5234, val bpr 0.5353
+sampled: [2, 5, 8, 13]
+Epoch 7, train bpr 0.4605, val bpr 0.4856
+sampled: [2, 4, 13, 17]
+Epoch 8, train bpr 0.4353, val bpr 0.4654
+sampled: [7, 14, 30, 33]
+Epoch 9, train bpr 0.4587, val bpr 0.4817
+sampled: [18, 19, 23, 26]
+Epoch 10, train bpr 0.4412, val bpr 0.4637
+sampled: [3, 10, 21, 22]
+Epoch 11, train bpr 0.4635, val bpr 0.4843
+sampled: [2, 4, 28, 31]
+Epoch 12, train bpr 0.4452, val bpr 0.4752
+sampled: [3, 7, 12, 18]
+Epoch 13, train bpr 0.4323, val bpr 0.4575
+sampled: [5, 8, 22, 32]
+Epoch 14, train bpr 0.4279, val bpr 0.4548
+sampled: [2, 8, 12, 32]
+Epoch 15, train bpr 0.3955, val bpr 0.4374
+sampled: [9, 11, 30, 35]
+Epoch 16, train bpr 0.4066, val bpr 0.4423
+sampled: [2, 9, 13, 18]
+Epoch 17, train bpr 0.3985, val bpr 0.4546
+sampled: [7, 17, 20, 34]
+Epoch 18, train bpr 0.4394, val bpr 0.4630
+sampled: [1, 6, 17, 25]
+Epoch 19, train bpr 0.4181, val bpr 0.4511
+sampled: [0, 11, 27, 30]
+Epoch 20, train bpr 0.3958, val bpr 0.4412
+sampled: [8, 12, 23, 24]
+Epoch 21, train bpr 0.4089, val bpr 0.4435
+sampled: [25, 28, 30, 34]
+Epoch 22, train bpr 0.3987, val bpr 0.4319
+sampled: [9, 20, 32, 33]
+Epoch 23, train bpr 0.4128, val bpr 0.4420
+sampled: [2, 17, 22, 35]
+Epoch 24, train bpr 0.3787, val bpr 0.4195
+sampled: [6, 7, 19, 23]
+Epoch 25, train bpr 0.3829, val bpr 0.4293
+sampled: [10, 18, 26, 32]
+Epoch 26, train bpr 0.3998, val bpr 0.4626
+sampled: [3, 17, 23, 27]
+Epoch 27, train bpr 0.3797, val bpr 0.4202
+sampled: [4, 8, 23, 32]
+Epoch 28, train bpr 0.3604, val bpr 0.4084
+sampled: [6, 11, 13, 27]
+Epoch 29, train bpr 0.3694, val bpr 0.4416
+sampled: [5, 8, 9, 11]
+Epoch 30, train bpr 0.3628, val bpr 0.4194
+sampled: [2, 5, 14, 28]
+Epoch 31, train bpr 0.3618, val bpr 0.4207
+sampled: [6, 9, 17, 31]
+Epoch 32, train bpr 0.3770, val bpr 0.4210
+sampled: [16, 18, 29, 30]
+Epoch 33, train bpr 0.3925, val bpr 0.4288
+sampled: [15, 19, 24, 31]
+Epoch 34, train bpr 0.3743, val bpr 0.4273
+sampled: [7, 26, 28, 33]
+Epoch 35, train bpr 0.3727, val bpr 0.4283
+sampled: [18, 25, 30, 32]
+Epoch 36, train bpr 0.3473, val bpr 0.4076
+sampled: [5, 6, 8, 18]
+Epoch 37, train bpr 0.3350, val bpr 0.3937
+sampled: [17, 25, 29, 32]
+Epoch 38, train bpr 0.3380, val bpr 0.3881
+sampled: [6, 7, 18, 31]
+Epoch 39, train bpr 0.3365, val bpr 0.4050
+sampled: [0, 3, 13, 33]
+Epoch 40, train bpr 0.3545, val bpr 0.4120
+sampled: [5, 12, 19, 26]
+Epoch 41, train bpr 0.3452, val bpr 0.4025
+sampled: [1, 15, 27, 33]
+Epoch 42, train bpr 0.3423, val bpr 0.3991
+sampled: [3, 6, 9, 15]
+Epoch 43, train bpr 0.3410, val bpr 0.3925
+sampled: [2, 12, 15, 29]
+Epoch 44, train bpr 0.3236, val bpr 0.3910
+sampled: [4, 18, 21, 29]
+Epoch 45, train bpr 0.4225, val bpr 0.4509
+sampled: [0, 8, 20, 30]
+Epoch 46, train bpr 0.3322, val bpr 0.3925
+sampled: [3, 13, 25, 32]
+Epoch 47, train bpr 0.3170, val bpr 0.3962
+sampled: [5, 12, 15, 17]
+Epoch 48, train bpr 0.3139, val bpr 0.3743
+sampled: [3, 15, 28, 35]
+Epoch 49, train bpr 0.3413, val bpr 0.3826
+sampled: [20, 27, 29, 30]
+Epoch 50, train bpr 0.3307, val bpr 0.3966
+sampled: [8, 9, 13, 22]
+Epoch 51, train bpr 0.3248, val bpr 0.3866
+sampled: [8, 11, 25, 34]
+Epoch 52, train bpr 0.3118, val bpr 0.3911
+sampled: [6, 20, 24, 30]
+Epoch 53, train bpr 0.3133, val bpr 0.3853
+sampled: [24, 27, 28, 34]
+Epoch 54, train bpr 0.3359, val bpr 0.3859
+sampled: [0, 11, 20, 34]
+Epoch 55, train bpr 0.3135, val bpr 0.3775
+sampled: [8, 15, 24, 28]
+Epoch 56, train bpr 0.2921, val bpr 0.3632
+sampled: [0, 17, 18, 28]
+Epoch 57, train bpr 0.3272, val bpr 0.3871
+sampled: [15, 18, 25, 29]
+Epoch 58, train bpr 0.2876, val bpr 0.3664
+sampled: [8, 17, 20, 29]
+Epoch 59, train bpr 0.2855, val bpr 0.3492
+sampled: [7, 9, 17, 23]
+Epoch 60, train bpr 0.2979, val bpr 0.3620
+sampled: [1, 29, 32, 35]
+Epoch 61, train bpr 0.2874, val bpr 0.3588
+sampled: [6, 16, 26, 28]
+Epoch 62, train bpr 0.2995, val bpr 0.3737
+sampled: [6, 13, 25, 32]
+Epoch 63, train bpr 0.2651, val bpr 0.3633
+sampled: [8, 10, 26, 34]
+Epoch 64, train bpr 0.2954, val bpr 0.3845
+sampled: [8, 20, 27, 32]
+Epoch 65, train bpr 0.2688, val bpr 0.3356
+sampled: [10, 17, 19, 20]
+Epoch 66, train bpr 0.3048, val bpr 0.3675
+sampled: [3, 7, 20, 23]
+Epoch 67, train bpr 0.2787, val bpr 0.3485
+sampled: [19, 22, 28, 33]
+Epoch 68, train bpr 0.3162, val bpr 0.3702
+sampled: [15, 25, 30, 34]
+Epoch 69, train bpr 0.2700, val bpr 0.3549
+sampled: [9, 17, 28, 29]
+Epoch 70, train bpr 0.2859, val bpr 0.3406
+sampled: [5, 9, 11, 15]
+Epoch 71, train bpr 0.2598, val bpr 0.3473
+sampled: [8, 11, 29, 30]
+Epoch 72, train bpr 0.2570, val bpr 0.3665
+sampled: [6, 11, 24, 29]
+Epoch 73, train bpr 0.2462, val bpr 0.3576
+sampled: [0, 3, 6, 11]
+Epoch 74, train bpr 0.2396, val bpr 0.3469
+sampled: [19, 28, 33, 34]
+Epoch 75, train bpr 0.2749, val bpr 0.3466
+sampled: [2, 11, 25, 35]
+Epoch 76, train bpr 0.2488, val bpr 0.3583
+sampled: [8, 12, 15, 32]
+Epoch 77, train bpr 0.2326, val bpr 0.3116
+sampled: [14, 19, 34, 35]
+Epoch 78, train bpr 0.2728, val bpr 0.3436
+sampled: [8, 9, 26, 28]
+Epoch 79, train bpr 0.2749, val bpr 0.3423
+sampled: [11, 18, 20, 30]
+Epoch 80, train bpr 0.2625, val bpr 0.3383
+sampled: [10, 15, 19, 30]
+Epoch 81, train bpr 0.2426, val bpr 0.3463
+sampled: [9, 20, 25, 29]
+Epoch 82, train bpr 0.2645, val bpr 0.3383
+sampled: [6, 11, 27, 29]
+Epoch 83, train bpr 0.2187, val bpr 0.3431
+sampled: [15, 17, 25, 27]
+Epoch 84, train bpr 0.2267, val bpr 0.3147
+sampled: [3, 28, 29, 35]
+Epoch 85, train bpr 0.2499, val bpr 0.3163
+sampled: [3, 7, 9, 28]
+Epoch 86, train bpr 0.2667, val bpr 0.3315
+sampled: [18, 19, 20, 35]
+Epoch 87, train bpr 0.2644, val bpr 0.3342
+sampled: [20, 25, 33, 35]
+Epoch 88, train bpr 0.2286, val bpr 0.3110
+sampled: [8, 9, 12, 34]
+Epoch 89, train bpr 0.2337, val bpr 0.3143
+sampled: [7, 17, 30, 35]
+Epoch 90, train bpr 0.2485, val bpr 0.3285
+sampled: [15, 17, 29, 30]
+Epoch 91, train bpr 0.2181, val bpr 0.3096
+sampled: [11, 30, 32, 33]
+Epoch 92, train bpr 0.2176, val bpr 0.3197
+sampled: [6, 18, 19, 33]
+Epoch 93, train bpr 0.2090, val bpr 0.3166
+sampled: [3, 17, 26, 34]
+Epoch 94, train bpr 0.2363, val bpr 0.3157
+sampled: [8, 11, 20, 30]
+Epoch 95, train bpr 0.2157, val bpr 0.3122
+sampled: [3, 17, 27, 35]
+Epoch 96, train bpr 0.2359, val bpr 0.3027
+sampled: [15, 18, 26, 28]
+Epoch 97, train bpr 0.2252, val bpr 0.3046
+sampled: [8, 9, 11, 25]
+Epoch 98, train bpr 0.2158, val bpr 0.3318
+sampled: [6, 18, 20, 33]
+Epoch 99, train bpr 0.2334, val bpr 0.3259
+sampled: [17, 25, 28, 32]
+Epoch 100, train bpr 0.1954, val bpr 0.2768
+sampled: [3, 9, 12, 15]
+Epoch 101, train bpr 0.2082, val bpr 0.2862
+sampled: [11, 12, 13, 33]
+Epoch 102, train bpr 0.2174, val bpr 0.3421
+sampled: [8, 9, 19, 34]
+Epoch 103, train bpr 0.2136, val bpr 0.3090
+sampled: [8, 19, 25, 27]
+Epoch 104, train bpr 0.2233, val bpr 0.3553
+sampled: [17, 25, 28, 34]
+Epoch 105, train bpr 0.1929, val bpr 0.2725
+sampled: [3, 9, 25, 35]
+Epoch 106, train bpr 0.1939, val bpr 0.2752
+sampled: [15, 19, 30, 34]
+Epoch 107, train bpr 0.1945, val bpr 0.2922
+sampled: [8, 15, 28, 32]
+Epoch 108, train bpr 0.1867, val bpr 0.2826
+sampled: [15, 17, 28, 32]
+Epoch 109, train bpr 0.1989, val bpr 0.2795
+sampled: [3, 8, 28, 35]
+Epoch 110, train bpr 0.1865, val bpr 0.2723
+sampled: [8, 9, 11, 20]
+Epoch 111, train bpr 0.2093, val bpr 0.3008
+sampled: [11, 15, 25, 32]
+Epoch 112, train bpr 0.1724, val bpr 0.2979
+sampled: [3, 9, 17, 30]
+Epoch 113, train bpr 0.2037, val bpr 0.2807
+sampled: [3, 19, 27, 28]
+Epoch 114, train bpr 0.1986, val bpr 0.2906
+sampled: [8, 17, 18, 32]
+Epoch 115, train bpr 0.1677, val bpr 0.2709
+sampled: [3, 9, 18, 33]
+Epoch 116, train bpr 0.2015, val bpr 0.2801
+sampled: [11, 17, 27, 35]
+Epoch 117, train bpr 0.1803, val bpr 0.2721
+sampled: [8, 9, 15, 27]
+Epoch 118, train bpr 0.1703, val bpr 0.2670
+sampled: [8, 19, 28, 30]
+Epoch 119, train bpr 0.1937, val bpr 0.3097
+sampled: [3, 12, 15, 34]
+Epoch 120, train bpr 0.1762, val bpr 0.2717
+sampled: [27, 30, 32, 35]
+Epoch 121, train bpr 0.1872, val bpr 0.2801
+sampled: [17, 30, 32, 35]
+Epoch 122, train bpr 0.1787, val bpr 0.2665
+sampled: [17, 28, 30, 34]
+Epoch 123, train bpr 0.1869, val bpr 0.2683
+sampled: [11, 19, 33, 35]
+Epoch 124, train bpr 0.1634, val bpr 0.2755
+sampled: [9, 19, 20, 28]
+Epoch 125, train bpr 0.2878, val bpr 0.3562
+sampled: [9, 20, 27, 34]
+Epoch 126, train bpr 0.2105, val bpr 0.2880
+sampled: [27, 28, 32, 33]
+Epoch 127, train bpr 0.1745, val bpr 0.2740
+sampled: [28, 30, 34, 35]
+Epoch 128, train bpr 0.1900, val bpr 0.2721
+sampled: [15, 20, 27, 32]
+Epoch 129, train bpr 0.1612, val bpr 0.2603
+sampled: [15, 17, 28, 30]
+Epoch 130, train bpr 0.1667, val bpr 0.2610
+sampled: [17, 19, 30, 34]
+Epoch 131, train bpr 0.1641, val bpr 0.2832
+sampled: [20, 27, 34, 35]
+Epoch 132, train bpr 0.1748, val bpr 0.2614
+sampled: [9, 20, 32, 33]
+Epoch 133, train bpr 0.1983, val bpr 0.2839
+sampled: [15, 28, 34, 35]
+Epoch 134, train bpr 0.1757, val bpr 0.2630
+sampled: [3, 12, 19, 30]
+Epoch 135, train bpr 0.1680, val bpr 0.3012
+sampled: [19, 32, 33, 34]
+Epoch 136, train bpr 0.1642, val bpr 0.2839
+sampled: [3, 15, 19, 34]
+Epoch 137, train bpr 0.1476, val bpr 0.2587
+sampled: [3, 9, 11, 17]
+Epoch 138, train bpr 0.1662, val bpr 0.2609
+sampled: [3, 15, 17, 20]
+Epoch 139, train bpr 0.1721, val bpr 0.2570
+sampled: [3, 9, 30, 32]
+Epoch 140, train bpr 0.1582, val bpr 0.2567
+sampled: [8, 15, 28, 34]
+Epoch 141, train bpr 0.1475, val bpr 0.2562
+sampled: [17, 20, 32, 34]
+Epoch 142, train bpr 0.1610, val bpr 0.2487
+sampled: [3, 9, 18, 30]
+Epoch 143, train bpr 0.1676, val bpr 0.2677
+sampled: [3, 9, 30, 32]
+Epoch 144, train bpr 0.1474, val bpr 0.2575
+sampled: [3, 17, 20, 30]
+Epoch 145, train bpr 0.1581, val bpr 0.2561
+sampled: [3, 28, 32, 34]
+Epoch 146, train bpr 0.1513, val bpr 0.2535
+sampled: [15, 20, 28, 32]
+Epoch 147, train bpr 0.1737, val bpr 0.2710
+sampled: [15, 20, 32, 35]
+Epoch 148, train bpr 0.1517, val bpr 0.2613
+sampled: [15, 28, 32, 35]
+Epoch 149, train bpr 0.1487, val bpr 0.2521
+final alpha ranking (tau=4.000; * = in final pool of 10):
+    1 * PUPUP      alpha +3.319417  strength 0.04901
+    2 * PUPPUP     alpha +2.930766  strength 0.04447
+    3 * PPUPUP     alpha +2.580554  strength 0.04074
+    4 * PCCPP      alpha +2.250847  strength 0.03752
+    5 * PPCCPP     alpha +2.148306  strength 0.03657
+    6 * PCCPCP     alpha +1.869733  strength 0.03411
+    7 * PPPUP      alpha +1.794417  strength 0.03347
+    8 * PUP        alpha +1.502562  strength 0.03112
+    9 * PPPPUP     alpha +1.371530  strength 0.03012
+   10 * PPCPUP     alpha +1.194590  strength 0.02881
+   11   PCCCPP     alpha +0.800742  strength 0.02611
+   12   PCPUPP     alpha +0.744946  strength 0.02575
+   13   PPPUPP     alpha +0.744205  strength 0.02574
+   14   PCPPP      alpha +0.738611  strength 0.02571
+   15   PCPUP      alpha +0.719274  strength 0.02558
+   16   PCPPPP     alpha +0.692096  strength 0.02541
+   17   PCCCP      alpha +0.684836  strength 0.02537
+   18   PCPPUP     alpha +0.566582  strength 0.02463
+   19   PPPPPP     alpha +0.557946  strength 0.02457
+   20   PCCCCP     alpha +0.557327  strength 0.02457
+   21   PPUP       alpha +0.557306  strength 0.02457
+   22   PCPPCP     alpha +0.537498  strength 0.02445
+   23   PPUPP      alpha +0.531971  strength 0.02441
+   24   PCPCPP     alpha +0.500351  strength 0.02422
+   25   PPCPPP     alpha +0.488138  strength 0.02415
+   26   PCCPPP     alpha +0.486602  strength 0.02414
+   27   PPPP       alpha +0.470397  strength 0.02404
+   28   PCCPUP     alpha +0.455523  strength 0.02395
+   29   PCP        alpha +0.423865  strength 0.02376
+   30   PCPCP      alpha +0.409683  strength 0.02368
+   31   PCCP       alpha +0.392408  strength 0.02358
+   32   PP         alpha +0.365730  strength 0.02342
+   33   PCPP       alpha +0.343741  strength 0.02329
+   34   PPP        alpha +0.303321  strength 0.02306
+   35   PPPPP      alpha +0.284142  strength 0.02295
+   36   PPCPP      alpha +0.280122  strength 0.02292
+sampling evaluation: exhaustive over all 210 subsets of size 4 of the final pool [3, 9, 15, 17, 20, 28, 30, 32, 34, 35]
+sampled: [3, 9, 15, 17]
+val bpr loss 0.2294592261314392
+
+sampled: [3, 9, 15, 20]
+val bpr loss 0.23500746488571167
+
+sampled: [3, 9, 15, 28]
+val bpr loss 0.23272189497947693
+
+sampled: [3, 9, 15, 30]
+val bpr loss 0.23690539598464966
+
+sampled: [3, 9, 15, 32]
+val bpr loss 0.2321043759584427
+
+sampled: [3, 9, 15, 34]
+val bpr loss 0.22707612812519073
+
+sampled: [3, 9, 15, 35]
+val bpr loss 0.23028460144996643
+
+sampled: [3, 9, 17, 20]
+val bpr loss 0.24487267434597015
+
+sampled: [3, 9, 17, 28]
+val bpr loss 0.242203950881958
+
+sampled: [3, 9, 17, 30]
+val bpr loss 0.22913247346878052
+
+sampled: [3, 9, 17, 32]
+val bpr loss 0.22386746108531952
+
+sampled: [3, 9, 17, 34]
+val bpr loss 0.22334671020507812
+
+sampled: [3, 9, 17, 35]
+val bpr loss 0.24007557332515717
+
+sampled: [3, 9, 20, 28]
+val bpr loss 0.3062123954296112
+
+sampled: [3, 9, 20, 30]
+val bpr loss 0.2446988821029663
+
+sampled: [3, 9, 20, 32]
+val bpr loss 0.23374082148075104
+
+sampled: [3, 9, 20, 34]
+val bpr loss 0.23892521858215332
+
+sampled: [3, 9, 20, 35]
+val bpr loss 0.24591518938541412
+
+sampled: [3, 9, 28, 30]
+val bpr loss 0.24219094216823578
+
+sampled: [3, 9, 28, 32]
+val bpr loss 0.23163585364818573
+
+sampled: [3, 9, 28, 34]
+val bpr loss 0.2373088002204895
+
+sampled: [3, 9, 28, 35]
+val bpr loss 0.2429305613040924
+
+sampled: [3, 9, 30, 32]
+val bpr loss 0.2323274314403534
+
+sampled: [3, 9, 30, 34]
+val bpr loss 0.23072610795497894
+
+sampled: [3, 9, 30, 35]
+val bpr loss 0.23290611803531647
+
+sampled: [3, 9, 32, 34]
+val bpr loss 0.22435159981250763
+
+sampled: [3, 9, 32, 35]
+val bpr loss 0.22585032880306244
+
+sampled: [3, 9, 34, 35]
+val bpr loss 0.22445780038833618
+
+sampled: [3, 15, 17, 20]
+val bpr loss 0.23143629729747772
+
+sampled: [3, 15, 17, 28]
+val bpr loss 0.23045741021633148
+
+sampled: [3, 15, 17, 30]
+val bpr loss 0.24694602191448212
+
+sampled: [3, 15, 17, 32]
+val bpr loss 0.24432748556137085
+
+sampled: [3, 15, 17, 34]
+val bpr loss 0.23690445721149445
+
+sampled: [3, 15, 17, 35]
+val bpr loss 0.24797601997852325
+
+sampled: [3, 15, 20, 28]
+val bpr loss 0.23398840427398682
+
+sampled: [3, 15, 20, 30]
+val bpr loss 0.23987430334091187
+
+sampled: [3, 15, 20, 32]
+val bpr loss 0.23465944826602936
+
+sampled: [3, 15, 20, 34]
+val bpr loss 0.22868691384792328
+
+sampled: [3, 15, 20, 35]
+val bpr loss 0.23281291127204895
+
+sampled: [3, 15, 28, 30]
+val bpr loss 0.23904351890087128
+
+sampled: [3, 15, 28, 32]
+val bpr loss 0.2340269386768341
+
+sampled: [3, 15, 28, 34]
+val bpr loss 0.22859060764312744
+
+sampled: [3, 15, 28, 35]
+val bpr loss 0.23148468136787415
+
+sampled: [3, 15, 30, 32]
+val bpr loss 0.2619397044181824
+
+sampled: [3, 15, 30, 34]
+val bpr loss 0.25107473134994507
+
+sampled: [3, 15, 30, 35]
+val bpr loss 0.251590371131897
+
+sampled: [3, 15, 32, 34]
+val bpr loss 0.24818694591522217
+
+sampled: [3, 15, 32, 35]
+val bpr loss 0.24803708493709564
+
+sampled: [3, 15, 34, 35]
+val bpr loss 0.23936496675014496
+
+sampled: [3, 17, 20, 28]
+val bpr loss 0.24319720268249512
+
+sampled: [3, 17, 20, 30]
+val bpr loss 0.23127830028533936
+
+sampled: [3, 17, 20, 32]
+val bpr loss 0.22555287182331085
+
+sampled: [3, 17, 20, 34]
+val bpr loss 0.22433389723300934
+
+sampled: [3, 17, 20, 35]
+val bpr loss 0.24186740815639496
+
+sampled: [3, 17, 28, 30]
+val bpr loss 0.2303624451160431
+
+sampled: [3, 17, 28, 32]
+val bpr loss 0.22476044297218323
+
+sampled: [3, 17, 28, 34]
+val bpr loss 0.22389930486679077
+
+sampled: [3, 17, 28, 35]
+val bpr loss 0.2402675598859787
+
+sampled: [3, 17, 30, 32]
+val bpr loss 0.24053266644477844
+
+sampled: [3, 17, 30, 34]
+val bpr loss 0.23523780703544617
+
+sampled: [3, 17, 30, 35]
+val bpr loss 0.24644048511981964
+
+sampled: [3, 17, 32, 34]
+val bpr loss 0.23198717832565308
+
+sampled: [3, 17, 32, 35]
+val bpr loss 0.242814302444458
+
+sampled: [3, 17, 34, 35]
+val bpr loss 0.23827533423900604
+
+sampled: [3, 20, 28, 30]
+val bpr loss 0.24366173148155212
+
+sampled: [3, 20, 28, 32]
+val bpr loss 0.23265109956264496
+
+sampled: [3, 20, 28, 34]
+val bpr loss 0.23744669556617737
+
+sampled: [3, 20, 28, 35]
+val bpr loss 0.24451780319213867
+
+sampled: [3, 20, 30, 32]
+val bpr loss 0.2350519895553589
+
+sampled: [3, 20, 30, 34]
+val bpr loss 0.23257555067539215
+
+sampled: [3, 20, 30, 35]
+val bpr loss 0.23573409020900726
+
+sampled: [3, 20, 32, 34]
+val bpr loss 0.22577551007270813
+
+sampled: [3, 20, 32, 35]
+val bpr loss 0.22815802693367004
+
+sampled: [3, 20, 34, 35]
+val bpr loss 0.22598551213741302
+
+sampled: [3, 28, 30, 32]
+val bpr loss 0.23456606268882751
+
+sampled: [3, 28, 30, 34]
+val bpr loss 0.23258380591869354
+
+sampled: [3, 28, 30, 35]
+val bpr loss 0.23431487381458282
+
+sampled: [3, 28, 32, 34]
+val bpr loss 0.2258712649345398
+
+sampled: [3, 28, 32, 35]
+val bpr loss 0.2270268052816391
+
+sampled: [3, 28, 34, 35]
+val bpr loss 0.22521187365055084
+
+sampled: [3, 30, 32, 34]
+val bpr loss 0.24735024571418762
+
+sampled: [3, 30, 32, 35]
+val bpr loss 0.24630886316299438
+
+sampled: [3, 30, 34, 35]
+val bpr loss 0.24005573987960815
+
+sampled: [3, 32, 34, 35]
+val bpr loss 0.2356809675693512
+
+sampled: [9, 15, 17, 20]
+val bpr loss 0.2290789633989334
+
+sampled: [9, 15, 17, 28]
+val bpr loss 0.22800801694393158
+
+sampled: [9, 15, 17, 30]
+val bpr loss 0.22710244357585907
+
+sampled: [9, 15, 17, 32]
+val bpr loss 0.2222794145345688
+
+sampled: [9, 15, 17, 34]
+val bpr loss 0.2226540595293045
+
+sampled: [9, 15, 17, 35]
+val bpr loss 0.22352470457553864
+
+sampled: [9, 15, 20, 28]
+val bpr loss 0.30026718974113464
+
+sampled: [9, 15, 20, 30]
+val bpr loss 0.25600218772888184
+
+sampled: [9, 15, 20, 32]
+val bpr loss 0.24764356017112732
+
+sampled: [9, 15, 20, 34]
+val bpr loss 0.25251156091690063
+
+sampled: [9, 15, 20, 35]
+val bpr loss 0.2309287041425705
+
+sampled: [9, 15, 28, 30]
+val bpr loss 0.25525134801864624
+
+sampled: [9, 15, 28, 32]
+val bpr loss 0.24722906947135925
+
+sampled: [9, 15, 28, 34]
+val bpr loss 0.25262048840522766
+
+sampled: [9, 15, 28, 35]
+val bpr loss 0.22933310270309448
+
+sampled: [9, 15, 30, 32]
+val bpr loss 0.2523993253707886
+
+sampled: [9, 15, 30, 34]
+val bpr loss 0.24961142241954803
+
+sampled: [9, 15, 30, 35]
+val bpr loss 0.23232698440551758
+
+sampled: [9, 15, 32, 34]
+val bpr loss 0.2447257936000824
+
+sampled: [9, 15, 32, 35]
+val bpr loss 0.22657616436481476
+
+sampled: [9, 15, 34, 35]
+val bpr loss 0.2260420024394989
+
+sampled: [9, 17, 20, 28]
+val bpr loss 0.29764652252197266
+
+sampled: [9, 17, 20, 30]
+val bpr loss 0.23984242975711823
+
+sampled: [9, 17, 20, 32]
+val bpr loss 0.2293468564748764
+
+sampled: [9, 17, 20, 34]
+val bpr loss 0.2410668432712555
+
+sampled: [9, 17, 20, 35]
+val bpr loss 0.24383385479450226
+
+sampled: [9, 17, 28, 30]
+val bpr loss 0.23867736756801605
+
+sampled: [9, 17, 28, 32]
+val bpr loss 0.22846688330173492
+
+sampled: [9, 17, 28, 34]
+val bpr loss 0.2404773235321045
+
+sampled: [9, 17, 28, 35]
+val bpr loss 0.24173714220523834
+
+sampled: [9, 17, 30, 32]
+val bpr loss 0.22424551844596863
+
+sampled: [9, 17, 30, 34]
+val bpr loss 0.22749187052249908
+
+sampled: [9, 17, 30, 35]
+val bpr loss 0.22708605229854584
+
+sampled: [9, 17, 32, 34]
+val bpr loss 0.22126905620098114
+
+sampled: [9, 17, 32, 35]
+val bpr loss 0.2209148108959198
+
+sampled: [9, 17, 34, 35]
+val bpr loss 0.22427146136760712
+
+sampled: [9, 20, 28, 30]
+val bpr loss 0.34676647186279297
+
+sampled: [9, 20, 28, 32]
+val bpr loss 0.325799822807312
+
+sampled: [9, 20, 28, 34]
+val bpr loss 0.3531762957572937
+
+sampled: [9, 20, 28, 35]
+val bpr loss 0.30449116230010986
+
+sampled: [9, 20, 30, 32]
+val bpr loss 0.2631278336048126
+
+sampled: [9, 20, 30, 34]
+val bpr loss 0.27196869254112244
+
+sampled: [9, 20, 30, 35]
+val bpr loss 0.24636738002300262
+
+sampled: [9, 20, 32, 34]
+val bpr loss 0.2615523636341095
+
+sampled: [9, 20, 32, 35]
+val bpr loss 0.2340962439775467
+
+sampled: [9, 20, 34, 35]
+val bpr loss 0.2448762208223343
+
+sampled: [9, 28, 30, 32]
+val bpr loss 0.26256078481674194
+
+sampled: [9, 28, 30, 34]
+val bpr loss 0.27201950550079346
+
+sampled: [9, 28, 30, 35]
+val bpr loss 0.24460731446743011
+
+sampled: [9, 28, 32, 34]
+val bpr loss 0.2619876265525818
+
+sampled: [9, 28, 32, 35]
+val bpr loss 0.23264341056346893
+
+sampled: [9, 28, 34, 35]
+val bpr loss 0.24379774928092957
+
+sampled: [9, 30, 32, 34]
+val bpr loss 0.2521608769893646
+
+sampled: [9, 30, 32, 35]
+val bpr loss 0.23129375278949738
+
+sampled: [9, 30, 34, 35]
+val bpr loss 0.23424692451953888
+
+sampled: [9, 32, 34, 35]
+val bpr loss 0.22688718140125275
+
+sampled: [15, 17, 20, 28]
+val bpr loss 0.22805801033973694
+
+sampled: [15, 17, 20, 30]
+val bpr loss 0.2286309003829956
+
+sampled: [15, 17, 20, 32]
+val bpr loss 0.2234276384115219
+
+sampled: [15, 17, 20, 34]
+val bpr loss 0.22304204106330872
+
+sampled: [15, 17, 20, 35]
+val bpr loss 0.22486716508865356
+
+sampled: [15, 17, 28, 30]
+val bpr loss 0.2289045751094818
+
+sampled: [15, 17, 28, 32]
+val bpr loss 0.2238682210445404
+
+sampled: [15, 17, 28, 34]
+val bpr loss 0.22385123372077942
+
+sampled: [15, 17, 28, 35]
+val bpr loss 0.22441793978214264
+
+sampled: [15, 17, 30, 32]
+val bpr loss 0.24439194798469543
+
+sampled: [15, 17, 30, 34]
+val bpr loss 0.23920027911663055
+
+sampled: [15, 17, 30, 35]
+val bpr loss 0.23907534778118134
+
+sampled: [15, 17, 32, 34]
+val bpr loss 0.23644579946994781
+
+sampled: [15, 17, 32, 35]
+val bpr loss 0.23580490052700043
+
+sampled: [15, 17, 34, 35]
+val bpr loss 0.23194408416748047
+
+sampled: [15, 20, 28, 30]
+val bpr loss 0.25608396530151367
+
+sampled: [15, 20, 28, 32]
+val bpr loss 0.24758368730545044
+
+sampled: [15, 20, 28, 34]
+val bpr loss 0.2520911395549774
+
+sampled: [15, 20, 28, 35]
+val bpr loss 0.23007941246032715
+
+sampled: [15, 20, 30, 32]
+val bpr loss 0.2549573481082916
+
+sampled: [15, 20, 30, 34]
+val bpr loss 0.25109827518463135
+
+sampled: [15, 20, 30, 35]
+val bpr loss 0.23445793986320496
+
+sampled: [15, 20, 32, 34]
+val bpr loss 0.24578943848609924
+
+sampled: [15, 20, 32, 35]
+val bpr loss 0.22838307917118073
+
+sampled: [15, 20, 34, 35]
+val bpr loss 0.22698359191417694
+
+sampled: [15, 28, 30, 32]
+val bpr loss 0.255239337682724
+
+sampled: [15, 28, 30, 34]
+val bpr loss 0.2519707679748535
+
+sampled: [15, 28, 30, 35]
+val bpr loss 0.23427383601665497
+
+sampled: [15, 28, 32, 34]
+val bpr loss 0.24695327877998352
+
+sampled: [15, 28, 32, 35]
+val bpr loss 0.22842183709144592
+
+sampled: [15, 28, 34, 35]
+val bpr loss 0.22743311524391174
+
+sampled: [15, 30, 32, 34]
+val bpr loss 0.2700825035572052
+
+sampled: [15, 30, 32, 35]
+val bpr loss 0.2520441710948944
+
+sampled: [15, 30, 34, 35]
+val bpr loss 0.2458454817533493
+
+sampled: [15, 32, 34, 35]
+val bpr loss 0.24249844253063202
+
+sampled: [17, 20, 28, 30]
+val bpr loss 0.2388712614774704
+
+sampled: [17, 20, 28, 32]
+val bpr loss 0.2282894104719162
+
+sampled: [17, 20, 28, 34]
+val bpr loss 0.23960146307945251
+
+sampled: [17, 20, 28, 35]
+val bpr loss 0.2423173189163208
+
+sampled: [17, 20, 30, 32]
+val bpr loss 0.22557246685028076
+
+sampled: [17, 20, 30, 34]
+val bpr loss 0.22815820574760437
+
+sampled: [17, 20, 30, 35]
+val bpr loss 0.22873583436012268
+
+sampled: [17, 20, 32, 34]
+val bpr loss 0.2214634269475937
+
+sampled: [17, 20, 32, 35]
+val bpr loss 0.2220931202173233
+
+sampled: [17, 20, 34, 35]
+val bpr loss 0.22471807897090912
+
+sampled: [17, 28, 30, 32]
+val bpr loss 0.22614343464374542
+
+sampled: [17, 28, 30, 34]
+val bpr loss 0.2290354073047638
+
+sampled: [17, 28, 30, 35]
+val bpr loss 0.2283269613981247
+
+sampled: [17, 28, 32, 34]
+val bpr loss 0.22251643240451813
+
+sampled: [17, 28, 32, 35]
+val bpr loss 0.22182822227478027
+
+sampled: [17, 28, 34, 35]
+val bpr loss 0.22469434142112732
+
+sampled: [17, 30, 32, 34]
+val bpr loss 0.23658078908920288
+
+sampled: [17, 30, 32, 35]
+val bpr loss 0.23511835932731628
+
+sampled: [17, 30, 34, 35]
+val bpr loss 0.23329956829547882
+
+sampled: [17, 32, 34, 35]
+val bpr loss 0.22935006022453308
+
+sampled: [20, 28, 30, 32]
+val bpr loss 0.2631711959838867
+
+sampled: [20, 28, 30, 34]
+val bpr loss 0.2717444598674774
+
+sampled: [20, 28, 30, 35]
+val bpr loss 0.24560725688934326
+
+sampled: [20, 28, 32, 34]
+val bpr loss 0.2610791325569153
+
+sampled: [20, 28, 32, 35]
+val bpr loss 0.23321712017059326
+
+sampled: [20, 28, 34, 35]
+val bpr loss 0.2435305118560791
+
+sampled: [20, 30, 32, 34]
+val bpr loss 0.25352370738983154
+
+sampled: [20, 30, 32, 35]
+val bpr loss 0.2333119958639145
+
+sampled: [20, 30, 34, 35]
+val bpr loss 0.23553860187530518
+
+sampled: [20, 32, 34, 35]
+val bpr loss 0.227735698223114
+
+sampled: [28, 30, 32, 34]
+val bpr loss 0.2547285556793213
+
+sampled: [28, 30, 32, 35]
+val bpr loss 0.2334081530570984
+
+sampled: [28, 30, 34, 35]
+val bpr loss 0.23600751161575317
+
+sampled: [28, 32, 34, 35]
+val bpr loss 0.22835956513881683
+
+sampled: [30, 32, 34, 35]
+val bpr loss 0.24512043595314026
+
+average train times 6.8478535604476924
+paths [['PCCPP', 'PUPUP', 'PPPPUP', 'PUPPUP'], []]
+
+tie group (within 0.0100 of the best val bpr 0.2209): 72 of 210 sets
+  +0.0000  ['PCCPP', 'PUPUP', 'PPPPUP', 'PUPPUP']
+  +0.0004  ['PCCPP', 'PUPUP', 'PPPPUP', 'PPUPUP']
+  +0.0005  ['PUPUP', 'PCCPCP', 'PPPPUP', 'PPUPUP']
+  +0.0009  ['PUPUP', 'PPCCPP', 'PPPPUP', 'PUPPUP']
+  +0.0012  ['PUPUP', 'PCCPCP', 'PPPPUP', 'PUPPUP']
+  +0.0014  ['PCCPP', 'PPPUP', 'PUPUP', 'PPPPUP']
+  +0.0016  ['PUPUP', 'PPCCPP', 'PPPPUP', 'PPUPUP']
+  +0.0017  ['PCCPP', 'PPPUP', 'PUPUP', 'PPUPUP']
+  +0.0021  ['PPPUP', 'PUPUP', 'PCCPCP', 'PPUPUP']
+  +0.0024  ['PUP', 'PCCPP', 'PUPUP', 'PPUPUP']
+  +0.0025  ['PPPUP', 'PUPUP', 'PCCPCP', 'PPPPUP']
+  +0.0026  ['PCCPP', 'PPPUP', 'PUPUP', 'PUPPUP']
+  +0.0029  ['PPPUP', 'PUPUP', 'PPCCPP', 'PPUPUP']
+  +0.0030  ['PUP', 'PCCPP', 'PUPUP', 'PPPPUP']
+  +0.0030  ['PPPUP', 'PUPUP', 'PPCCPP', 'PPPPUP']
+  +0.0030  ['PUP', 'PUPUP', 'PPCCPP', 'PPUPUP']
+  +0.0033  ['PCCPP', 'PUPUP', 'PPCPUP', 'PPPPUP']
+  +0.0034  ['PCCPP', 'PUPUP', 'PPUPUP', 'PUPPUP']
+  +0.0034  ['PUP', 'PUPUP', 'PCCPCP', 'PPUPUP']
+  +0.0034  ['PUP', 'PCCPP', 'PPPPUP', 'PPUPUP']
+  +0.0035  ['PPPUP', 'PUPUP', 'PPCCPP', 'PUPPUP']
+  +0.0035  ['PUP', 'PCCPP', 'PPUPUP', 'PUPPUP']
+  +0.0038  ['PUPUP', 'PPCCPP', 'PPUPUP', 'PUPPUP']
+  +0.0038  ['PUPUP', 'PCCPCP', 'PPUPUP', 'PUPPUP']
+  +0.0038  ['PUP', 'PUPUP', 'PPCCPP', 'PPPPUP']
+  +0.0040  ['PPPUP', 'PUPUP', 'PCCPCP', 'PUPPUP']
+  +0.0043  ['PUP', 'PPCCPP', 'PPUPUP', 'PUPPUP']
+  +0.0046  ['PUP', 'PUPUP', 'PCCPCP', 'PPPPUP']
+  +0.0047  ['PUPUP', 'PCCPCP', 'PPCPUP', 'PPPPUP']
+  +0.0049  ['PUP', 'PCCPCP', 'PPPPUP', 'PPUPUP']
+  +0.0049  ['PUP', 'PCCPP', 'PPPPUP', 'PUPPUP']
+  +0.0050  ['PUP', 'PPCCPP', 'PPPPUP', 'PPUPUP']
+  +0.0051  ['PUP', 'PCCPCP', 'PPUPUP', 'PUPPUP']
+  +0.0051  ['PCCPP', 'PPPUP', 'PPUPUP', 'PUPPUP']
+  +0.0052  ['PUPUP', 'PPCCPP', 'PPCPUP', 'PPPPUP']
+  +0.0057  ['PCCPP', 'PPPUP', 'PPPPUP', 'PUPPUP']
+  +0.0060  ['PCCPP', 'PPPPUP', 'PPUPUP', 'PUPPUP']
+  +0.0061  ['PPPUP', 'PCCPCP', 'PPUPUP', 'PUPPUP']
+  +0.0061  ['PUP', 'PPCCPP', 'PPPPUP', 'PUPPUP']
+  +0.0062  ['PUP', 'PCCPP', 'PPPUP', 'PPUPUP']
+  +0.0062  ['PCCPP', 'PUPUP', 'PPCPUP', 'PUPPUP']
+  +0.0062  ['PCCPP', 'PPPUP', 'PUPUP', 'PPCPUP']
+  +0.0065  ['PPPUP', 'PPCCPP', 'PPUPUP', 'PUPPUP']
+  +0.0066  ['PCCPP', 'PUPUP', 'PPCPUP', 'PPUPUP']
+  +0.0068  ['PCCPCP', 'PPPPUP', 'PPUPUP', 'PUPPUP']
+  +0.0071  ['PCCPP', 'PPPUP', 'PUPUP', 'PPCCPP']
+  +0.0071  ['PPPUP', 'PUPUP', 'PCCPCP', 'PPCCPP']
+  +0.0072  ['PUP', 'PCCPCP', 'PPPPUP', 'PUPPUP']
+  +0.0072  ['PUPUP', 'PCCPCP', 'PPCPUP', 'PPUPUP']
+  +0.0074  ['PUPUP', 'PCCPCP', 'PPCCPP', 'PPPPUP']
+  +0.0074  ['PUPUP', 'PPCCPP', 'PPCPUP', 'PUPPUP']
+  +0.0074  ['PPCCPP', 'PPPPUP', 'PPUPUP', 'PUPPUP']
+  +0.0075  ['PPPUP', 'PCCPCP', 'PPPPUP', 'PUPPUP']
+  +0.0075  ['PPPUP', 'PPCCPP', 'PPPPUP', 'PUPPUP']
+  +0.0076  ['PCCPP', 'PUPUP', 'PPCCPP', 'PPPPUP']
+  +0.0077  ['PUP', 'PPPUP', 'PPCCPP', 'PPUPUP']
+  +0.0077  ['PPPUP', 'PUPUP', 'PCCPCP', 'PPCPUP']
+  +0.0078  ['PUP', 'PPPUP', 'PCCPCP', 'PPUPUP']
+  +0.0078  ['PUPUP', 'PCCPCP', 'PPCPUP', 'PUPPUP']
+  +0.0080  ['PPPUP', 'PUPUP', 'PPCCPP', 'PPCPUP']
+  +0.0081  ['PUPUP', 'PPCCPP', 'PPCPUP', 'PPUPUP']
+  +0.0082  ['PCCPP', 'PPPUP', 'PUPUP', 'PCCPCP']
+  +0.0082  ['PUP', 'PCCPP', 'PUPUP', 'PPCPUP']
+  +0.0084  ['PCCPP', 'PPPUP', 'PPCCPP', 'PUPPUP']
+  +0.0084  ['PCCPP', 'PUPUP', 'PCCPCP', 'PPPPUP']
+  +0.0084  ['PUPUP', 'PPPPUP', 'PPUPUP', 'PUPPUP']
+  +0.0085  ['PUP', 'PCCPP', 'PPPUP', 'PUPUP']
+  +0.0092  ['PPPUP', 'PCCPCP', 'PPCCPP', 'PUPPUP']
+  +0.0094  ['PUP', 'PCCPP', 'PPPUP', 'PUPPUP']
+  +0.0094  ['PUP', 'PUPUP', 'PPCCPP', 'PPCPUP']
+  +0.0095  ['PUP', 'PPPUP', 'PUPUP', 'PPCCPP']
+  +0.0098  ['PUP', 'PCCPP', 'PPCPUP', 'PPUPUP']
+
+search record saved to logs\Fleet v3\final_ns4\search_ns4_seed21.json

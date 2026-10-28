@@ -1,0 +1,280 @@
+== 30 runs; (dedupe, warmup, ns_search) configs: {(True, 15, 6): 30}
+== cross-seed noise: median gap of a run's argmin scored in another run = 0.0039 (85 evaluable pairs); --delta 0.005 is at or above it
+== score noise of one set: 0.0068 (sets two runs share, 119 run pairs); two runs rank their shared sets with Spearman +0.59. The cross-seed noise above re-scores a run's WINNER, so it also carries the winner's curse
+
+== tie-group membership (delta 0.005): tie-group sizes per run [39, 49, 29, 106, 34, 35, 41, 30, 13, 34, 57, 61, 22, 46, 37, 16, 54, 48, 33, 13, 37, 53, 64, 23, 40, 75, 40, 35, 20, 34]
+   sets ranked by the number of runs whose tie group contains them (raw argmin sets reach at most 7/30):
+    7/30  PCCPPP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  <- some run's argmin
+    7/30  PCCPCP PCCPPP PCCPUP PPUPP PUPPUP PUPUP
+    6/30  PCCPP PCCPPP PPCCPP PPUP PUPPUP PUPUP
+    6/30  PCCPP PCCPUP PPCCPP PPUPP PUPPUP PUPUP
+    6/30  PCCP PCCPPP PCCPUP PPUPP PUPPUP PUPUP  <- some run's argmin
+    6/30  PCCPCP PCCPUP PPCCPP PPUPP PUPPUP PUPUP
+    6/30  PCCP PCCPUP PPCCPP PPPUP PUPPUP PUPUP
+    6/30  PCCPCP PCCPUP PPCCPP PPPUP PUPPUP PUPUP
+
+== averaged scores (loss = run effect + set effect, all runs pooled; sets seen in >= 5 runs; SE = score noise / sqrt(runs)):
+  +0.0000 (SE 0.0030,  5 runs)  PCCPP PCCPPP PPCCPP PPUPP PUPPUP PUPUP
+  +0.0008 (SE 0.0028,  6 runs)  PCCP PCCPCP PPCCPP PPPUPP PUPPUP PUPUP
+  +0.0008 (SE 0.0030,  5 runs)  PCCP PCCPPP PPCCPP PPUPP PUPPUP PUPUP
+  +0.0013 (SE 0.0030,  5 runs)  PCCP PCCPCP PCCPP PPPUPP PUPPUP PUPUP
+  +0.0013 (SE 0.0030,  5 runs)  PCCPCP PCCPP PCCPPP PPUPP PUPPUP PUPUP
+  +0.0013 (SE 0.0028,  6 runs)  PCCP PCCPPP PCCPUP PPUPP PUPPUP PUPUP
+  +0.0014 (SE 0.0026,  7 runs)  PCCPPP PCCPUP PPCCPP PPUPP PUPPUP PUPUP
+  +0.0015 (SE 0.0030,  5 runs)  PCCP PCCPP PPCCPP PPPUPP PUPPUP PUPUP
+   one-SE rule: 32 set(s) within 0.0030 of the best, simplest (fewest total hops) first:
+    24 hops  +0.0024  PCCP PCCPP PPCCPP PPUP PUPPUP PUPUP
+    25 hops  +0.0018  PCCP PCCPCP PPCCPP PPUP PUPPUP PUPUP
+    25 hops  +0.0019  PCCP PCCPPP PPCCPP PPUP PUPPUP PUPUP
+    25 hops  +0.0019  PCCP PCCPUP PPCCPP PPUP PUPPUP PUPUP
+    26 hops  +0.0008  PCCP PCCPPP PPCCPP PPUPP PUPPUP PUPUP
+    26 hops  +0.0013  PCCP PCCPCP PCCPP PPPUPP PUPPUP PUPUP
+    26 hops  +0.0013  PCCP PCCPPP PCCPUP PPUPP PUPPUP PUPUP
+    26 hops  +0.0015  PCCP PCCPP PPCCPP PPPUPP PUPPUP PUPUP
+    26 hops  +0.0016  PCCP PCCPUP PPCCPP PPUPP PUPPUP PUPUP
+    26 hops  +0.0020  PCCP PCCPCP PCCPPP PPUPP PUPPUP PUPUP
+    26 hops  +0.0024  PCCP PCCPCP PCCPUP PPUPP PUPPUP PUPUP
+    26 hops  +0.0027  PCCP PCCPP PCCPUP PPPUPP PUPPUP PUPUP
+    27 hops  +0.0000  PCCPP PCCPPP PPCCPP PPUPP PUPPUP PUPUP
+    27 hops  +0.0008  PCCP PCCPCP PPCCPP PPPUPP PUPPUP PUPUP
+    27 hops  +0.0013  PCCPCP PCCPP PCCPPP PPUPP PUPPUP PUPUP
+    27 hops  +0.0018  PCCP PCCPCP PCCPUP PPPUPP PUPPUP PUPUP
+    27 hops  +0.0018  PCCPCP PCCPP PPCCPP PPUPP PUPPUP PUPUP
+    27 hops  +0.0019  PCCP PCCPUP PPCCPP PPPUPP PUPPUP PUPUP
+    27 hops  +0.0025  PCCP PCCPUP PPCCPP PPUPUP PUPPUP PUPUP
+    27 hops  +0.0026  PCCPPP PCCPUP PPCCPP PPUP PUPPUP PUPUP
+    27 hops  +0.0028  PCCP PCCPCP PPCCPP PPUPUP PUPPUP PUPUP
+    27 hops  +0.0028  PCCPCP PCCPP PCCPUP PPUPP PUPPUP PUPUP
+    27 hops  +0.0030  PCCPP PCCPPP PCCPUP PPUPP PUPPUP PUPUP
+    28 hops  +0.0014  PCCPPP PCCPUP PPCCPP PPUPP PUPPUP PUPUP
+    28 hops  +0.0017  PCCPCP PCCPP PPCCPP PPPUPP PUPPUP PUPUP
+    28 hops  +0.0020  PCCPCP PCCPPP PPCCPP PPUPP PUPPUP PUPUP
+    28 hops  +0.0026  PCCPCP PCCPPP PCCPUP PPUPP PUPPUP PUPUP
+    28 hops  +0.0029  PCCPCP PCCPUP PPCCPP PPUPP PUPPUP PUPUP
+    28 hops  +0.0030  PCCPCP PCCPP PCCPUP PPPUPP PUPPUP PUPUP
+    29 hops  +0.0020  PCCPCP PCCPPP PPCCPP PPPUPP PUPPUP PUPUP
+    29 hops  +0.0025  PCCPCP PCCPUP PPCCPP PPPUPP PUPPUP PUPUP
+    29 hops  +0.0029  PCCPPP PCCPUP PPCCPP PPPUPP PUPPUP PUPUP
+
+== per run: argmin -> 1-SE re-selection (delta 0.005, freq from argmin)
+  seed   1: PCCPP PCCPPP PPCCPP PPUPUP PUP PUPPUP  ->  PCCPP PCCPPP PCCPUP PPCCPP PPUPP PUPPUP  (gap 0.0036, 39 sets within delta)  <- changed
+  seed  10: PCCP PCCPP PCCPPP PPCCPP PPUP PUPUP  ->  PCCP PCCPUP PPCCPP PPUP PUPPUP PUPUP  (gap 0.0000, 49 sets within delta)  <- changed
+  seed  11: PCCP PCCPUP PPCCPP PPPUPP PPUPUP PUPUP  ->  PCCP PCCPCP PCCPUP PPCCPP PPPPUP PUPUP  (gap 0.0032, 29 sets within delta)  <- changed
+  seed  12: PCCP PCCPCP PCCPP PPCCPP PPUPP PUPUP  ->  PCCP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  (gap 0.0034, 106 sets within delta)  <- changed
+  seed  13: PCCP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  ->  PCCP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  (gap 0.0000, 34 sets within delta)
+  seed  14: PCCP PCCPP PCCPUP PPCCPP PPUP PUPPUP  ->  PCCP PCCPP PCCPUP PPCCPP PPUP PUPUP  (gap 0.0028, 35 sets within delta)  <- changed
+  seed  15: PCCP PCCPCP PPCCPP PPPUP PUPPUP PUPUP  ->  PCCP PCCPUP PPCCPP PPUP PUPPUP PUPUP  (gap 0.0019, 41 sets within delta)  <- changed
+  seed  16: PCCCCP PCCPCP PCCPPP PPCCPP PPPUPP PUPUP  ->  PCCP PCCPCP PCCPPP PPCCPP PPPUPP PUPUP  (gap 0.0037, 30 sets within delta)  <- changed
+  seed  17: PCCP PCCPCP PPCCPP PPPPUP PUPPUP PUPUP  ->  PCCP PCCPUP PPCCPP PPPPUP PUPPUP PUPUP  (gap 0.0000, 13 sets within delta)  <- changed
+  seed  18: PCCP PCCPPP PCCPUP PPUPP PUPPUP PUPUP  ->  PCCP PCCPPP PCCPUP PPUPP PUPPUP PUPUP  (gap 0.0000, 34 sets within delta)
+  seed  19: PCCP PCCPUP PPCCPP PPUPUP PUP PUPUP  ->  PCCP PCCPUP PPCCPP PPUPUP PUPPUP PUPUP  (gap 0.0042, 57 sets within delta)  <- changed
+  seed   2: PCCCCP PCCPPP PPCCPP PPUP PUPPUP PUPUP  ->  PCCP PCCPUP PPCCPP PPUP PUPPUP PUPUP  (gap 0.0011, 61 sets within delta)  <- changed
+  seed  20: PCCPPP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  ->  PCCPP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  (gap 0.0002, 22 sets within delta)  <- changed
+  seed  21: PCCPP PCCPPP PCCPUP PPPUP PPUPP PUPUP  ->  PCCPP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  (gap 0.0029, 46 sets within delta)  <- changed
+  seed  22: PCCP PCCPCP PPPUPP PPUPUP PUPPUP PUPUP  ->  PCCP PCCPP PCCPUP PPUPP PUPPUP PUPUP  (gap 0.0013, 37 sets within delta)  <- changed
+  seed  23: PCCP PCCPP PPCCPP PPPPUP PUPPUP PUPUP  ->  PCCP PCCPP PPCCPP PPUP PUPPUP PUPUP  (gap 0.0022, 16 sets within delta)  <- changed
+  seed  24: PCCCCP PCCPP PCCPUP PPUPP PUP PUPPUP  ->  PCCPP PCCPUP PPUPP PPUPUP PUPPUP PUPUP  (gap 0.0040, 54 sets within delta)  <- changed
+  seed  25: PCCPP PCCPUP PPCCPP PPUPUP PUP PUPPUP  ->  PCCPP PCCPUP PPCCPP PPUPUP PUPPUP PUPUP  (gap 0.0040, 48 sets within delta)  <- changed
+  seed  26: PCCPCP PCCPPP PPCCPP PPUP PUPPUP PUPUP  ->  PCCP PCCPP PPCCPP PPUPUP PUPPUP PUPUP  (gap 0.0049, 33 sets within delta)  <- changed
+  seed  27: PCCPP PCCPPP PPCCPP PPPPUP PUPPUP PUPUP  ->  PCCPP PCCPPP PPCCPP PPUP PUPPUP PUPUP  (gap 0.0013, 13 sets within delta)  <- changed
+  seed  28: PCCPCP PCCPP PCCPUP PPPUPP PPUPUP PUPUP  ->  PCCPPP PCCPUP PPCCPP PPPUPP PUPPUP PUPUP  (gap 0.0016, 37 sets within delta)  <- changed
+  seed  29: PCCP PCCPP PCCPUP PPUP PPUPP PUPUP  ->  PCCP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  (gap 0.0022, 53 sets within delta)  <- changed
+  seed   3: PCCCCP PCCP PCCPUP PPCCPP PPPUP PUPPUP  ->  PCCP PCCPUP PPCCPP PPUPUP PUPPUP PUPUP  (gap 0.0003, 64 sets within delta)  <- changed
+  seed  30: PCCPP PCCPPP PPCCPP PPUPP PUPPUP PUPUP  ->  PCCP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  (gap 0.0009, 23 sets within delta)  <- changed
+  seed   4: PCCP PCCPUP PPCCPP PPUPUP PUP PUPPUP  ->  PCCP PCCPUP PPCCPP PPUPUP PUPPUP PUPUP  (gap 0.0026, 40 sets within delta)  <- changed
+  seed   5: PCCPCP PCCPUP PPPPUP PPUPP PUP PUPUP  ->  PCCPPP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  (gap 0.0019, 75 sets within delta)  <- changed
+  seed   6: PCCP PCCPPP PPCCPP PPUPP PUPPUP PUPUP  ->  PCCP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  (gap 0.0008, 40 sets within delta)  <- changed
+  seed   7: PCCPUP PPCCPP PPPUPP PPUPP PUPPUP PUPUP  ->  PCCPP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  (gap 0.0029, 35 sets within delta)  <- changed
+  seed   8: PCCP PCCPCP PPCCPP PPUPP PUPPUP PUPUP  ->  PCCP PCCPP PPCCPP PPUPP PUPPUP PUPUP  (gap 0.0008, 20 sets within delta)  <- changed
+  seed   9: PCCPP PCCPPP PCCPUP PPCCPP PPUP PUPUP  ->  PCCP PCCPP PCCPUP PPCCPP PPUPP PUPUP  (gap 0.0045, 34 sets within delta)  <- changed
+
+== argmin (original): 30 distinct / 30 runs (duplicate rate 0%)
+  x1   PCCPP PCCPPP PPCCPP PPUPUP PUP PUPPUP
+  x1   PCCP PCCPP PCCPPP PPCCPP PPUP PUPUP
+  x1   PCCP PCCPUP PPCCPP PPPUPP PPUPUP PUPUP
+  x1   PCCP PCCPCP PCCPP PPCCPP PPUPP PUPUP
+  x1   PCCP PCCPUP PPCCPP PPUPP PUPPUP PUPUP
+  x1   PCCP PCCPP PCCPUP PPCCPP PPUP PUPPUP
+  x1   PCCP PCCPCP PPCCPP PPPUP PUPPUP PUPUP
+  x1   PCCCCP PCCPCP PCCPPP PPCCPP PPPUPP PUPUP
+  x1   PCCP PCCPCP PPCCPP PPPPUP PUPPUP PUPUP
+  x1   PCCP PCCPPP PCCPUP PPUPP PUPPUP PUPUP
+  x1   PCCP PCCPUP PPCCPP PPUPUP PUP PUPUP
+  x1   PCCCCP PCCPPP PPCCPP PPUP PUPPUP PUPUP
+  x1   PCCPPP PCCPUP PPCCPP PPUPP PUPPUP PUPUP
+  x1   PCCPP PCCPPP PCCPUP PPPUP PPUPP PUPUP
+  x1   PCCP PCCPCP PPPUPP PPUPUP PUPPUP PUPUP
+  x1   PCCP PCCPP PPCCPP PPPPUP PUPPUP PUPUP
+  x1   PCCCCP PCCPP PCCPUP PPUPP PUP PUPPUP
+  x1   PCCPP PCCPUP PPCCPP PPUPUP PUP PUPPUP
+  x1   PCCPCP PCCPPP PPCCPP PPUP PUPPUP PUPUP
+  x1   PCCPP PCCPPP PPCCPP PPPPUP PUPPUP PUPUP
+  x1   PCCPCP PCCPP PCCPUP PPPUPP PPUPUP PUPUP
+  x1   PCCP PCCPP PCCPUP PPUP PPUPP PUPUP
+  x1   PCCCCP PCCP PCCPUP PPCCPP PPPUP PUPPUP
+  x1   PCCPP PCCPPP PPCCPP PPUPP PUPPUP PUPUP
+  x1   PCCP PCCPUP PPCCPP PPUPUP PUP PUPPUP
+  x1   PCCPCP PCCPUP PPPPUP PPUPP PUP PUPUP
+  x1   PCCP PCCPPP PPCCPP PPUPP PUPPUP PUPUP
+  x1   PCCPUP PPCCPP PPPUPP PPUPP PUPPUP PUPUP
+  x1   PCCP PCCPCP PPCCPP PPUPP PUPPUP PUPUP
+  x1   PCCPP PCCPPP PCCPUP PPCCPP PPUP PUPUP
+
+== 1-SE re-selected (delta 0.005): 20 distinct / 30 runs (duplicate rate 33%)
+  x5   PCCP PCCPUP PPCCPP PPUPP PUPPUP PUPUP
+  x3   PCCP PCCPUP PPCCPP PPUP PUPPUP PUPUP
+  x3   PCCP PCCPUP PPCCPP PPUPUP PUPPUP PUPUP
+  x3   PCCPP PCCPUP PPCCPP PPUPP PUPPUP PUPUP
+  x1   PCCPP PCCPPP PCCPUP PPCCPP PPUPP PUPPUP
+  x1   PCCP PCCPCP PCCPUP PPCCPP PPPPUP PUPUP
+  x1   PCCP PCCPP PCCPUP PPCCPP PPUP PUPUP
+  x1   PCCP PCCPCP PCCPPP PPCCPP PPPUPP PUPUP
+  x1   PCCP PCCPUP PPCCPP PPPPUP PUPPUP PUPUP
+  x1   PCCP PCCPPP PCCPUP PPUPP PUPPUP PUPUP
+  x1   PCCP PCCPP PCCPUP PPUPP PUPPUP PUPUP
+  x1   PCCP PCCPP PPCCPP PPUP PUPPUP PUPUP
+  x1   PCCPP PCCPUP PPUPP PPUPUP PUPPUP PUPUP
+  x1   PCCPP PCCPUP PPCCPP PPUPUP PUPPUP PUPUP
+  x1   PCCP PCCPP PPCCPP PPUPUP PUPPUP PUPUP
+  x1   PCCPP PCCPPP PPCCPP PPUP PUPPUP PUPUP
+  x1   PCCPPP PCCPUP PPCCPP PPPUPP PUPPUP PUPUP
+  x1   PCCPPP PCCPUP PPCCPP PPUPP PUPPUP PUPUP
+  x1   PCCP PCCPP PPCCPP PPUPP PUPPUP PUPUP
+  x1   PCCP PCCPP PCCPUP PPCCPP PPUPP PUPUP
+   null (every run's scores shuffled, pools kept): median 25 distinct (90% range 22-28); 1% of null fleets have <= 20. Only duplicates beyond the null show agreement between runs
+
+== path frequency in the re-selected sets (30 runs; the rate counts only runs whose final pool held the path)
+  PUPUP     29/30   100% of the 29 runs where available
+  PPCCPP    27/30   100% of the 27 runs where available
+  PUPPUP    26/30   90% of the 29 runs where available
+  PCCPUP    25/30   100% of the 25 runs where available
+  PCCP      21/30   100% of the 21 runs where available
+  PPUPP     15/30   100% of the 15 runs where available
+  PCCPP     13/30   59% of the 22 runs where available
+  PCCPPP     6/30   27% of the 22 runs where available
+  PPUP       6/30   46% of the 13 runs where available
+  PPUPUP     6/30   35% of the 17 runs where available
+  PCCPCP     2/30   9% of the 23 runs where available
+  PPPPUP     2/30   18% of the 11 runs where available
+  PPPUPP     2/30   14% of the 14 runs where available
+
+== path-frequency consensus (the 6 most frequent paths, assembled; NOT necessarily any run's pick): PCCP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  -- itself a 1-SE pick in 5/30 runs
+
+== HAN shortlist (4 sets: 1-SE picks seen >= 2x, plus the consensus)
+  x5   PCCP PCCPUP PPCCPP PPUPP PUPPUP PUPUP  (consensus)
+  x3   PCCP PCCPUP PPCCPP PPUP PUPPUP PUPUP
+  x3   PCCP PCCPUP PPCCPP PPUPUP PUPPUP PUPUP
+  x3   PCCPP PCCPUP PPCCPP PPUPP PUPPUP PUPUP
+
+== arch.py entries (prefix "amazon_lp_v3_f6_d005" is only the key name stem)
+    # ---- split-seed 1, stage 150, ns 6, num_final 10, alpha-edges val, wstep-kfold 4, dropout 0.5, plain relations, data c5f7bccbf61c1b0f; 30 runs in logs\Fleet v3\final_ns6
+    # averaged one-SE set, 24 hops, +0.0024 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a1": [
+        ['PCCP', 'PCCPP', 'PPCCPP', 'PPUP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 25 hops, +0.0018 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a2": [
+        ['PCCP', 'PCCPCP', 'PPCCPP', 'PPUP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 25 hops, +0.0019 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a3": [
+        ['PCCP', 'PCCPPP', 'PPCCPP', 'PPUP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 25 hops, +0.0019 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a4": [
+        ['PCCP', 'PCCPUP', 'PPCCPP', 'PPUP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 26 hops, +0.0008 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f6_d005_a5": [
+        ['PCCP', 'PCCPPP', 'PPCCPP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 26 hops, +0.0013 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f6_d005_a6": [
+        ['PCCP', 'PCCPCP', 'PCCPP', 'PPPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 26 hops, +0.0013 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a7": [
+        ['PCCP', 'PCCPPP', 'PCCPUP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 26 hops, +0.0015 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f6_d005_a8": [
+        ['PCCP', 'PCCPP', 'PPCCPP', 'PPPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 26 hops, +0.0016 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f6_d005_a9": [
+        ['PCCP', 'PCCPUP', 'PPCCPP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 26 hops, +0.0020 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f6_d005_a10": [
+        ['PCCP', 'PCCPCP', 'PCCPPP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 26 hops, +0.0024 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f6_d005_a11": [
+        ['PCCP', 'PCCPCP', 'PCCPUP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 26 hops, +0.0027 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f6_d005_a12": [
+        ['PCCP', 'PCCPP', 'PCCPUP', 'PPPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 27 hops, +0.0000 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f6_d005_a13": [
+        ['PCCPP', 'PCCPPP', 'PPCCPP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 27 hops, +0.0008 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a14": [
+        ['PCCP', 'PCCPCP', 'PPCCPP', 'PPPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 27 hops, +0.0013 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f6_d005_a15": [
+        ['PCCPCP', 'PCCPP', 'PCCPPP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 27 hops, +0.0018 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a16": [
+        ['PCCP', 'PCCPCP', 'PCCPUP', 'PPPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 27 hops, +0.0018 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f6_d005_a17": [
+        ['PCCPCP', 'PCCPP', 'PPCCPP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 27 hops, +0.0019 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a18": [
+        ['PCCP', 'PCCPUP', 'PPCCPP', 'PPPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 27 hops, +0.0025 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a19": [
+        ['PCCP', 'PCCPUP', 'PPCCPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 27 hops, +0.0026 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a20": [
+        ['PCCPPP', 'PCCPUP', 'PPCCPP', 'PPUP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 27 hops, +0.0028 vs the best averaged score, scored in 9/30 runs
+    "amazon_lp_v3_f6_d005_a21": [
+        ['PCCP', 'PCCPCP', 'PPCCPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 27 hops, +0.0028 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f6_d005_a22": [
+        ['PCCPCP', 'PCCPP', 'PCCPUP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 27 hops, +0.0030 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a23": [
+        ['PCCPP', 'PCCPPP', 'PCCPUP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 28 hops, +0.0014 vs the best averaged score, scored in 7/30 runs
+    "amazon_lp_v3_f6_d005_a24": [
+        ['PCCPPP', 'PCCPUP', 'PPCCPP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 28 hops, +0.0017 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a25": [
+        ['PCCPCP', 'PCCPP', 'PPCCPP', 'PPPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 28 hops, +0.0020 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a26": [
+        ['PCCPCP', 'PCCPPP', 'PPCCPP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 28 hops, +0.0026 vs the best averaged score, scored in 7/30 runs
+    "amazon_lp_v3_f6_d005_a27": [
+        ['PCCPCP', 'PCCPPP', 'PCCPUP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 28 hops, +0.0029 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a28": [
+        ['PCCPCP', 'PCCPUP', 'PPCCPP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 28 hops, +0.0030 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_d005_a29": [
+        ['PCCPCP', 'PCCPP', 'PCCPUP', 'PPPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 29 hops, +0.0020 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f6_d005_a30": [
+        ['PCCPCP', 'PCCPPP', 'PPCCPP', 'PPPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 29 hops, +0.0025 vs the best averaged score, scored in 7/30 runs
+    "amazon_lp_v3_f6_d005_a31": [
+        ['PCCPCP', 'PCCPUP', 'PPCCPP', 'PPPUPP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 29 hops, +0.0029 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f6_d005_a32": [
+        ['PCCPPP', 'PCCPUP', 'PPCCPP', 'PPPUPP', 'PUPPUP', 'PUPUP'], []],
+    # path-frequency consensus in 5/30 runs (vote, delta 0.005)
+    "amazon_lp_v3_f6_d005_c": [
+        ['PCCP', 'PCCPUP', 'PPCCPP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # 1-SE pick in 3/30 runs (vote, delta 0.005)
+    "amazon_lp_v3_f6_d005_s2": [
+        ['PCCP', 'PCCPUP', 'PPCCPP', 'PPUP', 'PUPPUP', 'PUPUP'], []],
+    # 1-SE pick in 3/30 runs (vote, delta 0.005)
+    "amazon_lp_v3_f6_d005_s3": [
+        ['PCCP', 'PCCPUP', 'PPCCPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
+    # 1-SE pick in 3/30 runs (vote, delta 0.005)
+    "amazon_lp_v3_f6_d005_s4": [
+        ['PCCPP', 'PCCPUP', 'PPCCPP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+
+summary written to logs\Fleet v3\final_ns6\reselect_d005.json

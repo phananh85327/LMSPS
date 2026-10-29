@@ -77,6 +77,32 @@ archs = {
         ['PPPPUP', 'PPUP', 'PPUPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
     "amazon_lp_f6_s7": [         # x2
         ['PPPPUP', 'PPPUP', 'PPPUPP', 'PPUPUP', 'PUPPUP', 'PUPUP'], []],
+    # ---- Fleet v3 (2026-10-29): the search rerun on the rebuilt data (review parts 1-9),
+    # from logs/Fleet v3/final_ns4|final_ns6/reselect_d010.txt. Per ns: the first two averaged
+    # one-SE sets (simplest first) and the vote's consensus _c; ns 6's one-SE window holds 32
+    # near-identical sets (review part 4). The category paths in them reach nothing for ~80% of
+    # products (books, music) and are kept as selected. Downstream MUST use --split-seed 1 and
+    # the data with this fingerprint.
+    # ---- split-seed 1, stage 150, ns 4, num_final 10, alpha-edges val, wstep-kfold 4, dropout 0.5, plain relations, data c5f7bccbf61c1b0f; 30 runs in logs\Fleet v3\final_ns4
+    # averaged one-SE set, 18 hops, +0.0000 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f4_a1": [
+        ['PCCPCP', 'PPCCPP', 'PPUPP', 'PUPUP'], []],
+    # averaged one-SE set, 19 hops, +0.0010 vs the best averaged score, scored in 5/30 runs
+    "amazon_lp_v3_f4_a2": [
+        ['PCCPPP', 'PPCCPP', 'PPPUPP', 'PUPUP'], []],
+    # path-frequency consensus in 5/30 runs (vote, delta 0.010)
+    "amazon_lp_v3_f4_c": [
+        ['PCCPP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
+    # ---- split-seed 1, stage 150, ns 6, num_final 10, alpha-edges val, wstep-kfold 4, dropout 0.5, plain relations, data c5f7bccbf61c1b0f; 30 runs in logs\Fleet v3\final_ns6
+    # averaged one-SE set, 24 hops, +0.0024 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_a1": [
+        ['PCCP', 'PCCPP', 'PPCCPP', 'PPUP', 'PUPPUP', 'PUPUP'], []],
+    # averaged one-SE set, 25 hops, +0.0018 vs the best averaged score, scored in 6/30 runs
+    "amazon_lp_v3_f6_a2": [
+        ['PCCP', 'PCCPCP', 'PPCCPP', 'PPUP', 'PUPPUP', 'PUPUP'], []],
+    # path-frequency consensus in 5/30 runs (vote, delta 0.010); also one-SE set a9
+    "amazon_lp_v3_f6_c": [
+        ['PCCP', 'PCCPUP', 'PPCCPP', 'PPUPP', 'PUPPUP', 'PUPUP'], []],
     # Manual meta-path sets
     "amazon_lp_manual_1": [
         ['PUP', 'PCP'], []],

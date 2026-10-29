@@ -103,8 +103,10 @@ full rerun decides.
    - the score noise and ranking agreement;
    - the duplicate rate *with* its null;
    - path pick rates when available.
-2. Give HAN the one-SE sets, plus the manual sets (M1–M8). **HAN's test results pick the final
-   set** (part 9). Supernet score differences of 0.001–0.003 are too small to decide on their own.
+2. Give HAN the one-SE sets, plus the manual sets (M1–M8). **HAN's validation results pick the
+   final set** (part 9); the test set only reports it. Supernet score differences of 0.001–0.003
+   are too small to decide on their own. (Corrected in part 4: this line said "test results".
+   Part 4 also caps the hand-over at two one-SE sets per ns plus the vote's consensus.)
 3. "Simplest first" counts total hops: shorter paths also make sparser HAN graphs (part 9).
 
 ## What changed

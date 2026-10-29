@@ -16,12 +16,13 @@ REM  Usage:  run_fleet_v3.bat pilot | final4 | final6 | reselect | push | all
 REM    pilot            optional, once before the fleets (~2 h): seed 1 twice with
 REM                     --deterministic; compare_search_records.py must print
 REM                     IDENTICAL (same seed -> same run on this machine)
-REM    final4 / final6  30 searches each, seeds 1-30 (about an hour per run on
-REM                     the old data; the rebuilt data is smaller)
+REM    final4 / final6  30 searches each, seeds 1-30 (about 20 min per run on
+REM                     the rebuilt data; about an hour on the old data)
 REM    reselect         reselect_fleet.py per ns, delta 0.010 and 0.005 (the
 REM                     sensitivity line); output also saved next to the runs.
-REM                     Paste the printed amazon_lp_v3_f<ns>_a<i> entries (the
-REM                     averaged one-SE sets, simplest first) into arch.py
+REM                     Paste the first two printed amazon_lp_v3_f<ns>_a<i>
+REM                     entries (averaged one-SE sets, simplest first) and the
+REM                     _c entry into the HAN repo's arch.py (review part 4)
 REM    push             commit logs\Fleet v3 and push it to the current branch
 REM                     (needs git on PATH and the branch tracking a remote)
 REM    all              final4, push, final6, push, reselect, push

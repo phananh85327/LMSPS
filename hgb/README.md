@@ -113,11 +113,11 @@ themselves; `execute.bat` is only a wrapper for `run_fleet_v2.bat`.
 |---|---|---|---|
 | 0 | move the old `../data/AMAZON` aside, rebuild it (see "Data" above) and check `audit.json` | minutes | the data every later step uses (`dat_generator.py` overwrites its output folder) |
 | 0b | `run_fleet_v3.bat pilot` (optional) | ~2 h | `logs/Fleet v3/pilot`: same seed twice, must print `IDENTICAL` |
-| 1 | `run_fleet_v3.bat final4` | 30 x ~1 h | `logs/Fleet v3/final_ns4/search_ns4_seed<s>.txt` + `.json` (a run whose `.json` exists is skipped) |
-| 2 | `run_fleet_v3.bat final6` | 30 x ~1 h | same for ns 6 |
+| 1 | `run_fleet_v3.bat final4` | 30 x ~20 min | `logs/Fleet v3/final_ns4/search_ns4_seed<s>.txt` + `.json` (a run whose `.json` exists is skipped) |
+| 2 | `run_fleet_v3.bat final6` | 30 x ~20 min | same for ns 6 |
 | 3 | `run_fleet_v3.bat reselect` | seconds | per ns, saved as `reselect_d010.txt/.json` (and `_d005`): averaged scores and their one-SE sets, the vote with its shuffled-score null, path pick rates, and `arch.py` entries |
-| 4 | paste into `arch.py` | - | the `amazon_lp_v3_f<ns>_a<i>` entries (averaged one-SE sets, simplest first) with their provenance line; the vote's `_c` / `_s<i>` entries only for comparison |
-| 5 | downstream, all with `--split-seed 1` | per arch | HAN repo: the `_a<i>` sets plus the manual sets (`../review/manual_metapath_sets.md`), on the same rebuilt data with graphs rebuilt from it (review part 9). `main_path.py` (the LMSPS model's own numbers) is optional |
+| 4 | paste into the HAN repo's `arch.py` | - | per ns, the first two `amazon_lp_v3_f<ns>_a<i>` entries (averaged one-SE sets, simplest first) and the vote's consensus `_c`, with their provenance line. Not every `_a<i>`: Fleet v3's ns 6 window holds 32 near-identical sets, all `PUPUP` + `PUPPUP` + one more user path + three near-empty category paths (review part 4). The `_s<i>` entries only for the record |
+| 5 | downstream, all with `--split-seed 1` | per arch | HAN repo: those sets, unchanged (near-empty paths included), plus the manual sets (`../review/manual_metapath_sets.md`), on the same rebuilt data with graphs rebuilt from it (review part 9). `main_path.py` (the LMSPS model's own numbers) is optional |
 | 6 | report | - | the averaged ranking and its one-SE sets, score noise and rank agreement, the duplicate rate next to its null, pick rates (review part 5) |
 
 `run_fleet_v3.bat all` runs steps 1-3 and commits and pushes `logs/Fleet v3` after each fleet

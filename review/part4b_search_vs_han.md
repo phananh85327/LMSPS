@@ -71,10 +71,11 @@ by product group), and whether a dense category path closes the gap (a run with 
 
 ## For the thesis
 
-- On this task and data the searched meta-paths do not carry over to HAN or metapath2vec: the
-  searched sets lose to the expert sets on the metric fixed in advance and do no better than
-  random draws from the search's own candidates. If the thesis sets this against the LMSPS paper's
-  own claims about using its meta-paths in other models, quote the paper's wording.
+- The paper's Table 4 retrains HAN with the searched meta-paths and reports a gain over HAN's
+  original meta-paths on all four of its node-classification datasets (part 3; e.g. ACM 90.79 to
+  92.28). On Amazon link prediction this does not reproduce: the searched sets lose to the expert
+  sets on the metric fixed in advance, in HAN and in metapath2vec, and do no better than random
+  draws from the search's own candidates.
 - Report the comparison with the random draws as their spread, not one draw, on test numbers.
 - Present the reasons above as hypotheses unless the optional checks confirm them.
 

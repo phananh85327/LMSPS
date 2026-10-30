@@ -103,7 +103,8 @@ python reselect_fleet.py "logs/Fleet v3/final_ns4/search_*.json" --delta 0.010 -
 ```
 
 `run_fleet_v3.bat final4 | final6 | reselect` runs the whole thing (30 seeds each,
-~1 h per run; logs and JSON records in `logs/Fleet v3/final_ns4|final_ns6`).
+~20 min per run on the rebuilt data; logs and JSON records in `logs/Fleet v3/final_ns4|final_ns6`).
+The Fleet v3 results are reviewed in `../review/part4_fleet_v3_results.md`.
 `run_fleet_v2.bat` keeps the Fleet v2 commands. Both scripts activate `lmsps_env`
 themselves; `execute.bat` is only a wrapper for `run_fleet_v2.bat`.
 
@@ -382,7 +383,9 @@ exact set. Details: chat log #18, Addendum 4.
 **Split-seed rule:** the search and every model trained on its paths (HAN, metapath2vec,
 the retrain) MUST use the same `--split-seed`. The final path set is chosen by validation BPR
 on the search split; training on a different split can put those validation edges into the
-test set. `reselect_fleet.py` prints a provenance line (split seed, stage, ns, num_final and
+test set. For the same reason, compare the searched sets with other sets (manual, random) on
+test numbers only: the search picked its sets on these validation edges, so their validation
+numbers lean in their favour. `reselect_fleet.py` prints a provenance line (split seed, stage, ns, num_final and
 the search flags, read from the runs) above its `arch.py` entries: paste it with them.
 
 Full review with file/line references: `chat/2026-10-16_18_lmsps-paper-fidelity-review.md`.

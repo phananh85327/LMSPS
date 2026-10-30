@@ -4,8 +4,8 @@
 - the 60 Fleet v3 searches (`hgb/logs/Fleet v3/final_ns4|final_ns6`, seeds 1-30), the two pilot
   runs, and the re-selection (`reselect_d010` / `_d005`, `reselect run.txt`)
 - judged against the rules fixed before the rerun (parts 5, 8, 9) and against Fleet v2
-- **Not yet:** whether the search's ranking of path sets predicts HAN's. That needs the HAN
-  runs and is the second half of this part.
+- whether the search's ranking of path sets predicts HAN's is the second half of this part:
+  `part4b_search_vs_han.md` (2026-10-30)
 
 **Bottom line:** the fleet is valid and can go to HAN. Nothing in the LMSPS code needs fixing.
 Two things in the hand-over do:

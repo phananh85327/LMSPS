@@ -129,6 +129,10 @@ the HAN repo's rerun on the rebuilt data (2026-10-27 to 2026-10-30).
    holds under both metrics: the searched sets are never significantly better.
 7. **Can it be reproduced?** Deterministic search (pilot = repeat), fingerprints in every record,
    graph and result, every command in `run_fleet_v3.bat` and `run_all.bat`, logs committed.
+8. **Why only two of the 32 size-6 sets?** The 32 are a plateau the search cannot rank, and
+   the rule (the two simplest, plus the vote's consensus) was fixed before any HAN result. The
+   three sets HAN trained scored the same (0.6658-0.6659): they differ in paths HAN drops.
+   Part 4's addendum has the details and an optional check.
 
 ## 7. Roadmap
 

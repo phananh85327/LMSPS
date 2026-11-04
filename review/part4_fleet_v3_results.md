@@ -217,3 +217,57 @@ python review/evidence/part4_split_half.py "hgb/logs/Fleet v3/final_ns6/search_*
 python hgb/compare_search_records.py "hgb/logs/Fleet v3/pilot/pilot_a.json" "hgb/logs/Fleet v3/pilot/pilot_b.json"
 ```
 The split-half test takes several minutes per fleet.
+
+## Addendum (2026-11-02): why two one-SE sets per size, and not more
+
+**The question:** the ns 6 window in `final_ns6/reselect_d010.txt` holds 32 sets. Running all of
+them was ruled out (V10), but why hand over exactly two, and not three or four?
+
+**What was decided, and why** (fixed before any HAN result):
+- **Not all 32.** Every one of them is `PUPUP` + `PUPPUP` + one more user path + three category
+  paths that reach nothing for 76-81% of products, and all are within one SE (0.0030) of the best
+  averaged score: a plateau the search cannot rank (V7). Training them all would train nearly the
+  same model 32 times.
+- **Two per size, simplest first.** The number two is a judgment call, not a statistic:
+  - ns 4's window held exactly two sets, so "the first two" treats both sizes alike.
+  - The second set tests whether the choice inside the plateau matters.
+  - The vote's consensus `_c` tests whether the selection rule matters.
+
+**What was overstated:** the cost. "About 20 extra GPU hours" came from the estimates made before
+the HAN runs. At the measured speeds (HAN about 12 min, metapath2vec about 3 min per 6-path set at
+seed 1), the other 30 sets would have cost about 7.5 GPU hours.
+
+**What HAN showed** (HAN repo, review H8): the three 6-path sets score the same, test Hit@10 at
+seed 1:
+
+| Set | Differs from `a1` in | Hit@10 |
+|---|---|---|
+| `amazon_lp_v3_f6_a1` | | 0.6658 |
+| `amazon_lp_v3_f6_a2` | one category path (`PCCPCP` for `PCCPP`) | 0.6658 |
+| `amazon_lp_v3_f6_c` (window set 9) | the extra user path (`PPUPP` for `PPUP`) and one category path (`PCCPUP` for `PCCPP`) | 0.6659 |
+
+HAN keeps one near-empty category path and drops the others (path weight below 0.01), so sets
+that differ only in those paths are the same model inside HAN. That is most of the window.
+
+**What varies across the window** is mainly the extra user path:
+
+| Extra user path | Sets in the window | Handed over |
+|---|---|---|
+| `PPUP` | 5 | `a1`, `a2` |
+| `PPUPP` | 14 | `_c` |
+| `PPPUPP` | 11 | none |
+| `PPUPUP` | 2 | none |
+
+**Why the untested sets cannot change the conclusion:** an untested set would need about +0.007
+Hit@10 to beat the weakest random 6-path draw (0.673) and +0.021 to tie M6 (0.687, 3 seeds). The
+swaps that were tested moved Hit@10 by at most 0.0001. That `PPPUPP` and `PPUPUP` behave like
+`PPUP` and `PPUPP` is an inference from that, not a measurement.
+
+**Optional, not run:** to measure it, train the simplest window set with each untested user path,
+at seed 1 (about 30 minutes for HAN and metapath2vec together):
+- `PCCP PCCPCP PCCPP PPPUPP PUPPUP PUPUP` (26 hops, +0.0013)
+- `PCCP PCCPUP PPCCPP PPUPUP PUPPUP PUPUP` (27 hops, +0.0025)
+
+Run them by hand (`--paths`) into a separate folder such as `output/AMAZON/v3_check`, so the main
+results table stays the pre-registered one, and report them as a robustness check added after the
+results. Neither may replace `a1` in the main comparison, whatever it scores.

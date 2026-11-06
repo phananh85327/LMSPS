@@ -51,6 +51,7 @@ from collections import Counter
 import numpy as np
 
 FINGERPRINT = 'c5f7bccbf61c1b0f'
+DROP = 0.01                                                         # a path weight below this counts as dropped
 EMPTY = {'PCCP', 'PCCPP', 'PCCPPP', 'PCCPCP', 'PCCPUP', 'PPCCPP'}   # no endpoint for 76-81% of products
 GROUPS = ['Book', 'DVD', 'Music', 'Video']                          # label order of dat_generator.py (sorted)
 DEG = [('d0', 'deg=0'), ('d1', 'deg 1-5'), ('d2', 'deg 6-20'), ('d3', 'deg>=21')]
@@ -546,6 +547,8 @@ def search_numbers(lmsps, out):
         put(f'search-winners-{ns}', n(len(winners)), 'distinct winners among the 30 runs')
         sel = read_json(fleet, f'final_ns{ns}', 'reselect_d010.json')
         alt = read_json(fleet, f'final_ns{ns}', 'reselect_d005.json')
+        if ns == 4:
+            put('search-delta-alt', f(alt['delta'], 3), 'the second tolerance of the vote (sensitivity check)')
         ties = []
         for d in recs[ns]:
             best = min(e['val_bpr'] for e in d['eval_table'])
@@ -881,9 +884,10 @@ def model_numbers(han, rank, out, n_test):
         put(f'kind-{kd}-paths', n(len(ps)))
         put(f'kind-{kd}-rank', f(st.mean((rank[(p, 4)] + rank[(p, 6)]) / 2 for p in ps), 1))
         put(f'kind-{kd}-uses', n(sum(len(use[p]) for p in ps)))
-        put(f'kind-{kd}-dropped', n(sum(1 for a in beta for p, x in beta[a].items() if kind(p) == kd and x < 0.01)))
+        put(f'kind-{kd}-dropped', n(sum(1 for a in beta for p, x in beta[a].items() if kind(p) == kd and x < DROP)))
         put(f'kind-{kd}-weight', f(st.median(x for p in ps for x in use[p]), 2))
-    put('han-dropped', n(sum(1 for a in beta for x in beta[a].values() if x < 0.01)), 'weights below 0.01, 24 sets')
+    put('han-dropped', n(sum(1 for a in beta for x in beta[a].values() if x < DROP)), 'weights below 0.01, 24 sets')
+    put('weight-drop', f'{DROP:g}', 'a path weight below this counts as dropped')
     keep = {a: max(x for p, x in beta[a].items() if p in EMPTY) for a in sets if family(a) == 'searched'}
     rest = [x for a, x in keep.items() if a != 'amazon_lp_v3_f4_c']
     put('han-empty-kept-min', f(min(rest), 2), 'largest near-empty-path weight (beta) in a searched set, f4c aside')
@@ -1062,11 +1066,12 @@ def model_numbers(han, rank, out, n_test):
         p = os.path.join(logdir, 'beta-warmup-5', f'han_{a}_s1.txt')
         w5[a] = parse_log(p)
         assert w5[a]['warmup'] == 5 and w5[a]['exit'] == 0
+    put('wu5-warmup', '5', 'epochs of path-weight warm-up in the side check (asserted in every log)')
     d = [w5[a]['hit10'] - float(han1[a]['hit10']) for a in sets]
     put('wu5-diff-mean', sg(st.mean(d), 3))
     put('wu5-diff-min', sg(min(d), 3))
     put('wu5-diff-max', sg(max(d), 3))
-    put('wu5-dropped', n(sum(1 for a in sets for x in w5[a]['beta'].values() if x < 0.01)))
+    put('wu5-dropped', n(sum(1 for a in sets for x in w5[a]['beta'].values() if x < DROP)))
     put('wu5-rho', f(spearman([w5[a]['hit10'] for a in sets], [float(han1[a]['hit10']) for a in sets]), 2))
     for ns in (4, 6):
         cand_ = [a for a in sets if family(a) != 'manual' and (f'rand{ns}' in a or f'_f{ns}_' in a)]

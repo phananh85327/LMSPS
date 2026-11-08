@@ -916,7 +916,7 @@ def model_numbers(han, rank, out, n_test):
 
     # F4: one point per path, by kind; selected paths labelled (anchor = side of the label)
     f4_labels = {'PUPUP': 'south', 'PUPPUP': 'north', 'PUP': 'east', 'PPCCPP': 'east', 'PCCPCP': 'east',
-                 'PCCP': 'south', 'PCCCP': 'north', 'PCP': 'south', 'PCPCP': 'east', 'PP': 'east', 'PPP': 'west'}
+                 'PCCP': 'south', 'PCCCP': 'north', 'PCP': 'east', 'PCPCP': 'east', 'PP': 'east', 'PPP': 'west'}
     pos = {p: ((rank[(p, 4)] + rank[(p, 6)]) / 2, st.mean(use[p])) for p in use}
     for kd in ('users', 'empty', 'cat', 'pp'):
         with open(os.path.join(out, 'figures', f'f4_{kd}.dat'), 'w', encoding='utf-8') as fh:

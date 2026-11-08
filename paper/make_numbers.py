@@ -332,7 +332,7 @@ def data_numbers(lmsps, extraction_report):
             'validation edges whose user has a training edge to a same-title product')
         put(f'{tag}-testtitle-pct', pct_auto(a['test_title_leak_frac']), 'the same for test edges')
         put(f'{tag}-alsobought', n(a['also_bought']['undirected']), 'distinct also-bought product pairs')
-    put('after-zerocat-pct', pct(after['categories']['zero_feature_categories_frac'], 0),
+    put('after-zerocat-pct', pct(after['categories']['zero_feature_categories_frac']),
         'categories with an all-zero name vector')
     put('after-leafcats-med', n(after['categories']['per_product_leaf_median']), 'leaf categories per product')
     put('title-coverage-pct', pct(after['title_lsa_coverage']), 'products with a non-zero title vector')
@@ -396,7 +396,7 @@ def split_numbers(lmsps, meta, split_seed=1):
         put(f'group-{name.lower()}-pct', pct(g[i] / counts['products']))
         put(f'test-{name.lower()}-pct', pct(gt[i] / n_test), 'share of test edges')
     put('group-bookmusic-pct', pct((g[0] + g[2]) / counts['products']))
-    put('test-bookmusic-pct', pct((gt[0] + gt[2]) / n_test, 0), 'books and music, share of test edges')
+    put('test-bookmusic-pct', pct((gt[0] + gt[2]) / n_test), 'books and music, share of test edges')
     return n_test, label
 
 
@@ -438,7 +438,7 @@ def graph_numbers(lmsps, han, label):
     g = Counter(label[p] for p in range(products))
     gi = Counter(label[p] for p in pccp_iso)
     for i, name in enumerate(GROUPS):
-        put(f'pccp-reach-{name.lower()}-pct', pct(1 - gi[i] / g[i], 0),
+        put(f'pccp-reach-{name.lower()}-pct', pct(1 - gi[i] / g[i]),
             f'share of {name} products that PCCP links to another product')
     # the same in HAN's graphs (top-20 per hop): the graph-bias audit of the HAN repository
     with open(os.path.join(han, 'output', 'AMAZON', 'v3', 'logs', 'audit_graph_bias.txt'), encoding='utf-8') as fh:
@@ -446,8 +446,8 @@ def graph_numbers(lmsps, han, label):
                re.finditer(r'^(P[PCU]*P)\s+[\d.]+\s+\d+\s+(\d+)\s', fh.read(), re.M)}
     assert len(iso) == 32, len(iso)
     shares = [iso[p] / products for p in EMPTY]
-    put('empty-isolated-min-pct', pct(min(shares), 0), 'near-empty paths: products without a neighbour, HAN graphs')
-    put('empty-isolated-max-pct', pct(max(shares), 0))
+    put('empty-isolated-min-pct', pct(min(shares)), 'near-empty paths: products without a neighbour, HAN graphs')
+    put('empty-isolated-max-pct', pct(max(shares)))
     put('pccp-graph-isolated-pct', pct(iso['PCCP'] / products), 'PCCP in the HAN graph (pruning adds a few)')
     put('pcccp-graph-isolated', n(iso['PCCCP']))
     put('pcp-graph-isolated', n(iso['PCP']))
@@ -568,7 +568,7 @@ def search_numbers(lmsps, out):
             put(f'search-null-med{tag}-{ns}', n(st.median(null)))
             put(f'search-null-lo{tag}-{ns}', n(null[len(null) // 20]), '90% range, as reselect_fleet.py')
             put(f'search-null-hi{tag}-{ns}', n(null[-(len(null) // 20) - 1]))
-            put(f'search-null-share{tag}-{ns}', pct(sum(x <= vote for x in null) / len(null), 0),
+            put(f'search-null-share{tag}-{ns}', pct(sum(x <= vote for x in null) / len(null)),
                 'null fleets with as few distinct picks')
         put(f'search-cons-count-{ns}', n(sel['consensus_count']), 'runs whose vote pick is the consensus')
         if ns == 4:

@@ -5,6 +5,7 @@ repositories.
 
     python make_numbers.py --lmsps <LMSPS checkout> --han <HAN-improve checkout>
                            [--out <paper folder>] [--extraction-report <extraction_report.json>]
+                           [--lang vi]
 
 The script is kept in the LMSPS repository as paper/make_numbers.py. From the root of that
 checkout, with the HAN repository cloned next to it:
@@ -15,6 +16,12 @@ It only reads the two checkouts. It writes, into --out (by default the folder th
     <out>/numbers.tex        \setval{key}{value} for every number; the paper prints one with \val{key}
     <out>/figures/*.dat      the data behind figures F2-F4
 and prints a short list of key values for a check by eye.
+
+With --lang vi, numbers.tex is the one of the Vietnamese version (paper_v2_vn): a decimal comma and
+a dot between thousands (0,666; 1.147.920), "thứ 6, 7 và 8" for a list of places and "triệu" for
+million. Version numbers, commits, branches, the split fingerprint, the GPU's name, the path sets
+and the names of sets stay as they are (vi_value). The figure data are the same in both languages,
+and without --lang vi the output is what it was before the option existed.
 
 Sources (all committed, except the optional extraction report):
   LMSPS  hgb/logs/Fleet v3/final_ns{4,6}/search_ns*_seed*.{json,txt}  the 60 search runs
@@ -143,6 +150,28 @@ def ptext(v):                  # a formatted p as text: p<0.001 or p=0.0076
 
 def ordinal(k):
     return {1: '1st', 2: '2nd', 3: '3rd'}.get(k, f'{k}th')
+
+
+# values that --lang vi leaves as they are: versions, names and ids (and every repo-* key and path set)
+VI_KEEP = {'env-python', 'env-torch', 'env-cuda', 'env-dgl', 'env-numpy', 'env-gpu', 'split-fingerprint',
+           'han-valpick', 'mtv-valpick'}
+
+
+def vi_value(key, value):
+    """A value in the Vietnamese number format (--lang vi): 0.666 -> 0,666; 1,147,920 -> 1.147.920;
+    6th, 7th and 8th -> thứ 6, 7 và 8; 142.8 million -> 142,8 triệu."""
+    if key in VI_KEEP or key.startswith('repo-') or re.fullmatch(r'[PCU]+(?: [PCU]+)*', value):
+        return value
+    places = re.findall(r'(\d+)(?:st|nd|rd|th)\b', value)
+    if places:
+        return 'thứ ' + (', '.join(places[:-1]) + ' và ' + places[-1] if len(places) > 1 else places[0])
+    value = value.replace(' million', ' triệu')
+    value = re.sub(r'(?<=\d),(?=\d{3}(?!\d))', '\0', value)       # the thousands, kept apart for now
+    value = re.sub(r'(?<=\d)\.(?=\d)', ',', value)                # the decimals
+    value = value.replace('\0', '.')
+    if re.search(r'[A-Za-z]', re.sub(r'\\(?:ensuremath|detokenize)|triệu|\bp\b', '', value)):
+        raise ValueError(f'{key}: {value!r} holds a word that vi_value() has no Vietnamese for')
+    return value
 
 
 # ------------------------------------------------------------------------------------------------
@@ -1145,8 +1174,13 @@ def write_tex(out, args):
         '% numbers.tex -- written by make_numbers.py; do not edit by hand, run the script again.',
         f'% {datetime.date.today().isoformat()}: python make_numbers.py'
         f' --lmsps {os.path.basename(os.path.abspath(args.lmsps))} --han {os.path.basename(os.path.abspath(args.han))}'
-        + (' --extraction-report extraction_report.json' if args.extraction_report else ''),
+        + (' --extraction-report extraction_report.json' if args.extraction_report else '')
+        + (' --lang vi' if args.lang == 'vi' else ''),
         '% The raw-file counts come from extraction_report.json; the block below names the copy used.',
+    ] + ([
+        '% Vietnamese number format (--lang vi): 0,666 and 1.147.920; versions, commits and path sets as in',
+        '% English. The notes after the values stay in English.',
+    ] if args.lang == 'vi' else []) + [
         '% \\val{key} prints a number; an unknown key prints ??key in bold and raises a LaTeX warning.',
         '\\makeatletter',
         '\\providecommand{\\setval}[2]{\\@namedef{val@#1}{#2}}',
@@ -1170,6 +1204,9 @@ def main():
     ap.add_argument('--out', default=os.path.dirname(os.path.abspath(__file__)), help='paper folder')
     ap.add_argument('--extraction-report', help='extraction_report.json of the full run (default: look in the LMSPS '
                     'checkout, review/evidence/ then data/AMAZON_filtered/; else the copy in this script)')
+    ap.add_argument('--lang', choices=('en', 'vi'), default='en',
+                    help='number format of numbers.tex: en (0.666; 1,147,920) or vi for the Vietnamese version '
+                    '(0,666; 1.147.920); the figure data are the same')
     args = ap.parse_args()
     os.makedirs(os.path.join(args.out, 'figures'), exist_ok=True)
     _, _, meta = data_numbers(args.lmsps, args.extraction_report)
@@ -1179,6 +1216,8 @@ def main():
     model_numbers(args.han, rank, args.out, n_test)
     external_numbers()
     provenance_numbers(args.lmsps, args.han)
+    if args.lang == 'vi':
+        VALUES[:] = [(k, vi_value(k, v) if k else v, note) for k, v, note in VALUES]
     write_tex(args.out, args)
     vals = {k: v for k, v, _ in VALUES if k}
     print(f'{len(vals)} values written to {os.path.join(args.out, "numbers.tex")}')
